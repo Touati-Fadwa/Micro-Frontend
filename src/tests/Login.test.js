@@ -8,7 +8,7 @@ describe("Login Component", () => {
   beforeEach(() => {
     // Réinitialiser les mocks avant chaque test
     jest.clearAllMocks();
-    
+
     // Mock de fetch par défaut (cas de succès)
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
@@ -97,7 +97,8 @@ describe("Login Component", () => {
     fireEvent.click(screen.getByRole("button", { name: "Se connecter" }));
 
     // Attendre que le message d'erreur apparaisse
-    expect(await screen.findByText("Email, mot de passe ou rôle incorrect")).toBeInTheDocument();
+    const errorMessage = await screen.findByText("Email, mot de passe ou rôle incorrect");
+    expect(errorMessage).toBeInTheDocument();
 
     // Vérifier que onLogin n'a pas été appelé
     expect(mockOnLogin).not.toHaveBeenCalled();
