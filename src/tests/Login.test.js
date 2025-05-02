@@ -24,8 +24,9 @@ describe("Login Component", () => {
   test("renders login form correctly", () => {
     render(<Login onLogin={mockOnLogin} />);
 
-    expect(screen.getByText("Bibliothèque ISET Tozeur")).toBeInTheDocument(); // Mise à jour du texte
-    expect(screen.getByText("Connexion")).toBeInTheDocument();
+    // Vérifier que les éléments du formulaire sont bien rendus
+    expect(screen.getByText("Bibliothèque ISET Tozeur")).toBeInTheDocument(); 
+    expect(screen.getByText(/Connexion à votre compte/i)).toBeInTheDocument(); // Utiliser un matcher plus flexible
     expect(screen.getByLabelText("Email")).toBeInTheDocument();
     expect(screen.getByLabelText("Mot de passe")).toBeInTheDocument();
     expect(screen.getByLabelText("Étudiant")).toBeInTheDocument();
