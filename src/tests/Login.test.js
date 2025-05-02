@@ -100,4 +100,3 @@ describe("Login Component", () => {
     expect(mockOnLogin).not.toHaveBeenCalled();
   });
 });
-
