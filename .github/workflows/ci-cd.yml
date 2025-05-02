@@ -22,14 +22,10 @@ jobs:
         node-version: '18'
         cache: 'npm'
         
-    - name: Vérifier la structure des fichiers
-      run: |
-          ls -la
-          ls -la frontend  # Vérifier que le répertoire frontend existe bien
+    
   
     - name: Install dependencies
       run: |
-        cd frontend
         npm ci
     
     - name: Run tests
