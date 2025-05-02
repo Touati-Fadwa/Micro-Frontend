@@ -56,20 +56,20 @@ const Login = ({ onLogin }) => {
           fontWeight: '900',
           marginBottom: '5px'
         }}>Bibliothèque ISET Tozeur</h1>
-        
+
         <h2 style={{
           fontSize: '18px',
           fontWeight: '500',
           color: '#555'
         }}>Connexion à votre compte</h2>
       </div>
-      
+
       <div style={{
         height: '1px',
         background: '#e0e0e0',
         margin: '20px 0'
       }}></div>
-      
+
       <form onSubmit={handleSubmit}>
         <div style={{ marginBottom: '25px' }}>
           <label htmlFor="email" style={{
@@ -98,13 +98,13 @@ const Login = ({ onLogin }) => {
             }}
           />
         </div>
-        
+
         <div style={{
           height: '1px',
           background: '#e0e0e0',
           margin: '20px 0'
         }}></div>
-        
+
         <div style={{ marginBottom: '25px' }}>
           <label htmlFor="password" style={{
             display: 'block',
@@ -132,13 +132,13 @@ const Login = ({ onLogin }) => {
             }}
           />
         </div>
-        
+
         <div style={{
           height: '1px',
           background: '#e0e0e0',
           margin: '20px 0'
         }}></div>
-        
+
         <div style={{ marginBottom: '25px' }}>
           <label htmlFor="role" style={{
             display: 'block',
@@ -167,13 +167,13 @@ const Login = ({ onLogin }) => {
             <option value="admin">Administrateur</option>
           </select>
         </div>
-        
+
         <div style={{
           height: '1px',
           background: '#e0e0e0',
           margin: '20px 0'
         }}></div>
-        
+
         {error && (
           <div style={{
             color: '#e74c3c',
@@ -187,7 +187,7 @@ const Login = ({ onLogin }) => {
             {error}
           </div>
         )}
-        
+
         <button
           type="submit"
           disabled={loading}
