@@ -73,16 +73,15 @@ jobs:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
 
-        
+
     - name: Build and push Docker image
       uses: docker/build-push-action@v4
       with:
         context: .
         push: true
-        tags: ${{ secrets.DOCKER_USERNAME }}/bibliotheque-frontend:${{ github.sha }},${{ secrets.DOCKER_USERNAME }}/bibliotheque-frontend:latest
-        cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/bibliotheque-frontend:latest
-        cache-to: type=inline
-
+        tags: ${{ secrets.DOCKER_USERNAME }}/bibliotheque-frontend:latest
+        file: Dockerfile.frontend
+        
   deploy:
     needs: build-and-push
     runs-on: self-hosted
