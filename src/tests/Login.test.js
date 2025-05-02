@@ -1,0 +1,105 @@
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import Login from "../pages/Login";
+
+describe("Login Component", () => {
+  const mockOnLogin = jest.fn();
+
+  beforeEach(() => {
+    // Réinitialiser les mocks avant chaque test
+    jest.clearAllMocks();
+    
+    // Mock de fetch par défaut (cas de succès)
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ 
+        id: 1, 
+        name: "Test User", 
+        role: "admin",  // Changé pour correspondre au rôle sélectionné
+        token: "fake-token" 
+      }),
+    });
+  });
+
+  test("renders login form correctly", () => {
+    render(<Login onLogin={mockOnLogin} />);
+
+    expect(screen.getByText("Bibliothèque ISET")).toBeInTheDocument();
+    expect(screen.getByText("Connexion")).toBeInTheDocument();
+    expect(screen.getByLabelText("Email")).toBeInTheDocument();
+    expect(screen.getByLabelText("Mot de passe")).toBeInTheDocument();
+    expect(screen.getByLabelText("Étudiant")).toBeInTheDocument();
+    expect(screen.getByLabelText("Administrateur")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Se connecter" })).toBeInTheDocument();
+  });
+
+  test("handles form submission correctly", async () => {
+    render(<Login onLogin={mockOnLogin} />);
+
+    // Remplir le formulaire
+    fireEvent.change(screen.getByLabelText("Email"), { 
+      target: { value: "test@example.com" } 
+    });
+    fireEvent.change(screen.getByLabelText("Mot de passe"), { 
+      target: { value: "password123" } 
+    });
+
+    // Sélectionner le rôle admin
+    fireEvent.click(screen.getByLabelText("Administrateur"));
+
+    // Soumettre le formulaire
+    fireEvent.click(screen.getByRole("button", { name: "Se connecter" }));
+
+    // Vérifier que fetch a été appelé avec les bons paramètres
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(expect.any(String), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: "test@example.com",
+          password: "password123",
+          role: "admin",  // Doit correspondre au rôle sélectionné
+        }),
+      });
+    });
+
+    // Vérifier que onLogin a été appelé avec les bonnes données
+    await waitFor(() => {
+      expect(mockOnLogin).toHaveBeenCalledWith({
+        id: 1,
+        name: "Test User",
+        role: "admin",  // Doit correspondre à la réponse mockée
+        token: "fake-token",
+      });
+    });
+  });
+
+  test("displays error message on failed login", async () => {
+    // Simuler une erreur de connexion
+    global.fetch.mockResolvedValueOnce({
+      ok: false,
+      json: () => Promise.resolve({ message: "Email, mot de passe ou rôle incorrect" }),
+    });
+
+    render(<Login onLogin={mockOnLogin} />);
+
+    // Remplir le formulaire
+    fireEvent.change(screen.getByLabelText("Email"), { 
+      target: { value: "wrong@example.com" } 
+    });
+    fireEvent.change(screen.getByLabelText("Mot de passe"), { 
+      target: { value: "wrongpassword" } 
+    });
+
+    // Soumettre le formulaire
+    fireEvent.click(screen.getByRole("button", { name: "Se connecter" }));
+
+    // Attendre que le message d'erreur apparaisse
+    expect(await screen.findByText("Email, mot de passe ou rôle incorrect")).toBeInTheDocument();
+
+    // Vérifier que onLogin n'a pas été appelé
+    expect(mockOnLogin).not.toHaveBeenCalled();
+  });
+});
