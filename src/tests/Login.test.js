@@ -29,8 +29,15 @@ describe("Login Component", () => {
     expect(screen.getByText(/Connexion à votre compte/i)).toBeInTheDocument();
     expect(screen.getByLabelText("Email")).toBeInTheDocument();
     expect(screen.getByLabelText("Mot de passe")).toBeInTheDocument();
-    expect(screen.getByLabelText("Étudiant")).toBeInTheDocument();
-    expect(screen.getByLabelText("Administrateur")).toBeInTheDocument();
+    
+    // Vérification de l'étiquette pour le rôle
+    expect(screen.getByLabelText(/Sélectionnez votre rôle/i)).toBeInTheDocument();
+
+    // Vérifier la présence des options dans le select
+    const roleSelect = screen.getByLabelText(/Sélectionnez votre rôle/i);
+    expect(roleSelect).toHaveTextContent("Étudiant");
+    expect(roleSelect).toHaveTextContent("Administrateur");
+
     expect(screen.getByRole("button", { name: "Se connecter" })).toBeInTheDocument();
   });
 
@@ -41,7 +48,7 @@ describe("Login Component", () => {
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "test@example.com" } });
     fireEvent.change(screen.getByLabelText("Mot de passe"), { target: { value: "password123" } });
 
-    // Sélectionner le rôle admin (utilisation de fireEvent.change pour un select)
+    // Sélectionner le rôle admin
     fireEvent.change(screen.getByLabelText(/Sélectionnez votre rôle/i), { target: { value: "admin" } });
 
     // Soumettre le formulaire
