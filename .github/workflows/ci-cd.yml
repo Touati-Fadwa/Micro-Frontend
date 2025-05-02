@@ -9,7 +9,7 @@ on:
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     steps:
     - uses: actions/checkout@v3
@@ -49,7 +49,7 @@ jobs:
 
   build-and-push:
     needs: build-and-test
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     if: github.event_name != 'pull_request'
     
     steps:
@@ -78,7 +78,7 @@ jobs:
 
   deploy:
     needs: build-and-push
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     if: github.event_name != 'pull_request'
     
     steps:
@@ -162,7 +162,7 @@ jobs:
 
   monitoring:
     needs: deploy
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     if: github.event_name != 'pull_request'
     
     steps:
@@ -189,7 +189,7 @@ jobs:
 
   k9s-guide:
     needs: monitoring
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     if: github.event_name != 'pull_request'
     
     steps:
