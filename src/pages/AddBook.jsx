@@ -32,7 +32,7 @@ const AddBook = ({ user, onLogout }) => {
       try {
         const response = await fetch(`${API_URL}/api/books/categories`, {
           headers: {
-            "Authorization": `Bearer ${user.token}`,
+            Authorization: `Bearer ${user.token}`,
           },
         })
 
@@ -59,8 +59,8 @@ const AddBook = ({ user, onLogout }) => {
   }
 
   const isValidURL = (url) => {
-    const pattern = /^(https?:\/\/[^\s$.?#].[^\s]*)$/i;
-    return pattern.test(url);
+    const pattern = /^(https?:\/\/[^\s$.?#].[^\s]*)$/i
+    return pattern.test(url)
   }
 
   const handleSubmit = async (e) => {
@@ -75,12 +75,19 @@ const AddBook = ({ user, onLogout }) => {
       return
     }
 
+    // ✅ Validation URL de l'image
+    if (formData.coverImage && !isValidURL(formData.coverImage)) {
+      setError("L'URL de l'image de couverture n'est pas valide.")
+      setLoading(false)
+      return
+    }
+
     try {
       const response = await fetch(`${API_URL}/api/books`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${user.token}`,
+          Authorization: `Bearer ${user.token}`,
         },
         body: JSON.stringify(formData),
       })
@@ -123,7 +130,7 @@ const AddBook = ({ user, onLogout }) => {
       setTimeout(() => {
         setError("")
         setSuccess(false)
-      }, 5000) // Effacer après 5 secondes
+      }, 5000)
     }
   }, [error, success])
 
@@ -136,7 +143,9 @@ const AddBook = ({ user, onLogout }) => {
 
         <div className="form-container">
           {success && (
-            <div className="success-message">Le livre a été ajouté avec succès! Redirection vers le catalogue...</div>
+            <div className="success-message">
+              Le livre a été ajouté avec succès! Redirection vers le catalogue...
+            </div>
           )}
 
           {error && <div className="error-message">{error}</div>}
@@ -213,7 +222,13 @@ const AddBook = ({ user, onLogout }) => {
 
               <div className="form-group">
                 <label htmlFor="categoryId">Catégorie*</label>
-                <select id="categoryId" name="categoryId" value={formData.categoryId} onChange={handleChange} required>
+                <select
+                  id="categoryId"
+                  name="categoryId"
+                  value={formData.categoryId}
+                  onChange={handleChange}
+                  required
+                >
                   <option value="">Sélectionner une catégorie</option>
                   {categories.map((category) => (
                     <option key={category.id} value={category.id}>
@@ -265,7 +280,11 @@ const AddBook = ({ user, onLogout }) => {
             </div>
 
             <div className="form-actions">
-              <button type="button" className="cancel-button" onClick={() => navigate("/admin/catalog")}>
+              <button
+                type="button"
+                className="cancel-button"
+                onClick={() => navigate("/admin/catalog")}
+              >
                 Annuler
               </button>
               <button type="submit" className="submit-button" disabled={loading}>
@@ -280,4 +299,3 @@ const AddBook = ({ user, onLogout }) => {
 }
 
 export default AddBook
-
