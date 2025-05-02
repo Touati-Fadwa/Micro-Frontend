@@ -43,6 +43,7 @@ jobs:
             -Dsonar.exclusions=**/*.test.tsx,**/*.test.ts,**/node_modules/**
             -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
             -Dsonar.branch.name=main
+            
 
   build-and-push:
     needs: build-and-test
