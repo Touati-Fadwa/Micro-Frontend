@@ -72,7 +72,7 @@ const Login = ({ onLogin }) => {
       
       <form onSubmit={handleSubmit}>
         <div style={{ marginBottom: '25px' }}>
-          <label style={{
+          <label htmlFor="email" style={{
             display: 'block',
             fontSize: '15px',
             fontWeight: '600',
@@ -82,6 +82,7 @@ const Login = ({ onLogin }) => {
             Email
           </label>
           <input
+            id="email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -105,7 +106,7 @@ const Login = ({ onLogin }) => {
         }}></div>
         
         <div style={{ marginBottom: '25px' }}>
-          <label style={{
+          <label htmlFor="password" style={{
             display: 'block',
             fontSize: '15px',
             fontWeight: '600',
@@ -115,6 +116,7 @@ const Login = ({ onLogin }) => {
             Mot de passe
           </label>
           <input
+            id="password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -138,7 +140,7 @@ const Login = ({ onLogin }) => {
         }}></div>
         
         <div style={{ marginBottom: '25px' }}>
-          <label style={{
+          <label htmlFor="role" style={{
             display: 'block',
             fontSize: '15px',
             fontWeight: '600',
@@ -148,12 +150,12 @@ const Login = ({ onLogin }) => {
             Sélectionnez votre rôle
           </label>
           <select
+            id="role"
             value={role}
             onChange={(e) => setRole(e.target.value)}
             style={{
               width: '100%',
               padding: '12px',
-              
               border: '1px solid #ddd',
               borderRadius: '6px',
               fontSize: '14px',
@@ -200,11 +202,10 @@ const Login = ({ onLogin }) => {
             fontSize: '16px',
             fontWeight: '600',
             marginTop: '10px',
-            transition: 'background-color 0.3s',
-            ':hover': {
-              backgroundColor: '#2980b9'
-            }
+            transition: 'background-color 0.3s'
           }}
+          onMouseOver={(e) => e.target.style.backgroundColor = '#2980b9'}
+          onMouseOut={(e) => e.target.style.backgroundColor = '#3498db'}
         >
           {loading ? "Connexion..." : "Se connecter"}
         </button>
