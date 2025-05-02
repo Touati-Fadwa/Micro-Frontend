@@ -32,7 +32,7 @@ jobs:
     - name: 📦 Upload Frontend Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: Frontend CI/CD
+        name: Frontend-CI-CD
         path: build/
 
     
