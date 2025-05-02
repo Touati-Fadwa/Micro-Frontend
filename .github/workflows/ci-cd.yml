@@ -29,11 +29,6 @@ jobs:
     - name: 🏗️ Build frontend
       run: npm run build
 
-    - name: 📦 Upload Frontend Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: Frontend-CI-CD
-        path: build/
 
     
     - name: Run tests
