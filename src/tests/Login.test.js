@@ -12,11 +12,11 @@ describe("Login Component", () => {
     // Mock de fetch par défaut (cas de succès)
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ 
-        id: 1, 
-        name: "Test User", 
-        role: "admin",  // Changé pour correspondre au rôle sélectionné
-        token: "fake-token" 
+      json: () => Promise.resolve({
+        id: 1,
+        name: "Test User",
+        role: "admin",
+        token: "fake-token",
       }),
     });
   });
@@ -25,8 +25,8 @@ describe("Login Component", () => {
     render(<Login onLogin={mockOnLogin} />);
 
     // Vérifier que les éléments du formulaire sont bien rendus
-    expect(screen.getByText("Bibliothèque ISET Tozeur")).toBeInTheDocument(); 
-    expect(screen.getByText(/Connexion à votre compte/i)).toBeInTheDocument(); // Utiliser un matcher plus flexible
+    expect(screen.getByText("Bibliothèque ISET Tozeur")).toBeInTheDocument();
+    expect(screen.getByText(/Connexion à votre compte/i)).toBeInTheDocument();
     expect(screen.getByLabelText("Email")).toBeInTheDocument();
     expect(screen.getByLabelText("Mot de passe")).toBeInTheDocument();
     expect(screen.getByLabelText("Étudiant")).toBeInTheDocument();
@@ -38,15 +38,11 @@ describe("Login Component", () => {
     render(<Login onLogin={mockOnLogin} />);
 
     // Remplir le formulaire
-    fireEvent.change(screen.getByLabelText("Email"), { 
-      target: { value: "test@example.com" } 
-    });
-    fireEvent.change(screen.getByLabelText("Mot de passe"), { 
-      target: { value: "password123" } 
-    });
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "test@example.com" } });
+    fireEvent.change(screen.getByLabelText("Mot de passe"), { target: { value: "password123" } });
 
     // Sélectionner le rôle admin (utilisation de fireEvent.change pour un select)
-    fireEvent.change(screen.getByLabelText(/Sélectionnez votre rôle/i), { target: { value: 'admin' } });
+    fireEvent.change(screen.getByLabelText(/Sélectionnez votre rôle/i), { target: { value: "admin" } });
 
     // Soumettre le formulaire
     fireEvent.click(screen.getByRole("button", { name: "Se connecter" }));
@@ -61,7 +57,7 @@ describe("Login Component", () => {
         body: JSON.stringify({
           email: "test@example.com",
           password: "password123",
-          role: "admin",  // Doit correspondre au rôle sélectionné
+          role: "admin",
         }),
       });
     });
@@ -71,7 +67,7 @@ describe("Login Component", () => {
       expect(mockOnLogin).toHaveBeenCalledWith({
         id: 1,
         name: "Test User",
-        role: "admin",  // Doit correspondre à la réponse mockée
+        role: "admin",
         token: "fake-token",
       });
     });
@@ -87,15 +83,11 @@ describe("Login Component", () => {
     render(<Login onLogin={mockOnLogin} />);
 
     // Remplir le formulaire
-    fireEvent.change(screen.getByLabelText("Email"), { 
-      target: { value: "wrong@example.com" } 
-    });
-    fireEvent.change(screen.getByLabelText("Mot de passe"), { 
-      target: { value: "wrongpassword" } 
-    });
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "wrong@example.com" } });
+    fireEvent.change(screen.getByLabelText("Mot de passe"), { target: { value: "wrongpassword" } });
 
-    // Sélectionner le rôle admin (utilisation de fireEvent.change pour un select)
-    fireEvent.change(screen.getByLabelText(/Sélectionnez votre rôle/i), { target: { value: 'admin' } });
+    // Sélectionner le rôle admin
+    fireEvent.change(screen.getByLabelText(/Sélectionnez votre rôle/i), { target: { value: "admin" } });
 
     // Soumettre le formulaire
     fireEvent.click(screen.getByRole("button", { name: "Se connecter" }));
@@ -108,3 +100,4 @@ describe("Login Component", () => {
     expect(mockOnLogin).not.toHaveBeenCalled();
   });
 });
+
