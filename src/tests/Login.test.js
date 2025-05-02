@@ -24,7 +24,7 @@ describe("Login Component", () => {
   test("renders login form correctly", () => {
     render(<Login onLogin={mockOnLogin} />);
 
-    expect(screen.getByText("Bibliothèque ISET")).toBeInTheDocument();
+    expect(screen.getByText("Bibliothèque ISET Tozeur")).toBeInTheDocument(); // Mise à jour du texte
     expect(screen.getByText("Connexion")).toBeInTheDocument();
     expect(screen.getByLabelText("Email")).toBeInTheDocument();
     expect(screen.getByLabelText("Mot de passe")).toBeInTheDocument();
@@ -44,8 +44,8 @@ describe("Login Component", () => {
       target: { value: "password123" } 
     });
 
-    // Sélectionner le rôle admin
-    fireEvent.click(screen.getByLabelText("Administrateur"));
+    // Sélectionner le rôle admin (utilisation de fireEvent.change pour un select)
+    fireEvent.change(screen.getByLabelText(/Sélectionnez votre rôle/i), { target: { value: 'admin' } });
 
     // Soumettre le formulaire
     fireEvent.click(screen.getByRole("button", { name: "Se connecter" }));
@@ -92,6 +92,9 @@ describe("Login Component", () => {
     fireEvent.change(screen.getByLabelText("Mot de passe"), { 
       target: { value: "wrongpassword" } 
     });
+
+    // Sélectionner le rôle admin (utilisation de fireEvent.change pour un select)
+    fireEvent.change(screen.getByLabelText(/Sélectionnez votre rôle/i), { target: { value: 'admin' } });
 
     // Soumettre le formulaire
     fireEvent.click(screen.getByRole("button", { name: "Se connecter" }));
