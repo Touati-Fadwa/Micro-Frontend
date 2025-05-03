@@ -1,10 +1,15 @@
-name: Frontend CI/CD
+name: Frontend CI/CD with K3s Deployment
 
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+
+env:
+  DOCKER_IMAGE: ${{ secrets.DOCKER_USERNAME }}/bibliotheque-frontend
+  NAMESPACE: bibliotheque
+  APP_NAME: bibliotheque-frontend
 
 jobs:
   build-and-test:
@@ -13,7 +18,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
       with:
-        fetch-depth: 0  # Nécessaire pour SonarQube
+        fetch-depth: 0
     
     - name: Set up Node.js
       uses: actions/setup-node@v3
@@ -24,20 +29,20 @@ jobs:
     - name: Install dependencies
       run: npm ci
 
-    - name: 🏗️ Build frontend
+    - name: Build frontend
       run: npm run build
 
-    - name: 📦 Upload Frontend Artifact
+    - name: Upload Frontend Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: Frontend-CI-CD
+        name: frontend-build
         path: build/
 
     - name: Run tests
       run: npm test -- --coverage
 
     - name: SonarCloud Scan
-      uses: SonarSource/sonarqube-scan-action@v5.0.0
+      uses: SonarSource/sonarqube-scan-action@v5
       env:
         SONAR_TOKEN: ${{ secrets.MFSONAR_TOKEN }}
         GITHUB_TOKEN: ${{ secrets.MFSONAR_TOKEN }}
@@ -56,81 +61,87 @@ jobs:
     if: github.event_name != 'pull_request'
     
     steps:
-      - uses: actions/checkout@v3
+    - uses: actions/checkout@v3
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-        with:
-          driver: docker
-          install: true
-      
-      - name: ⬇️ Download Frontend Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: Frontend-CI-CD
-          path: build/
-      
-      - name: Login to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-      
-      - name: Build, push and load Docker image
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          push: true            # Pousse l'image vers Docker Hub
-          load: true            # Charge l'image localement
-          tags: |
-             ${{ secrets.DOCKER_USERNAME }}/bibliotheque-frontend:latest
-             ${{ secrets.DOCKER_USERNAME }}/bibliotheque-frontend:${{ github.sha }}
-          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/bibliotheque-frontend:latest
-          cache-to: type=inline
-          
-      #- name: Run Docker container
-       # run: |
-         # docker run -d -p 3000:80 --name bibliotheque-frontend-container ${{ secrets.DOCKER_USERNAME }}/bibliotheque-frontend:latest
-      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+      with:
+        driver: docker
+        install: true
+    
+    - name: Download Frontend Artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: frontend-build
+        path: build/
+    
+    - name: Login to Docker Hub
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+    
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        push: true
+        tags: |
+          ${{ env.DOCKER_IMAGE }}:latest
+          ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
+        cache-from: type=registry,ref=${{ env.DOCKER_IMAGE }}:latest
+        cache-to: type=inline
+
   deploy:
     needs: build-and-push
     runs-on: self-hosted
     if: github.event_name != 'pull_request'
     
     steps:
-    - uses: actions/checkout@v3
-    
-    - name: Set up kubectl
-      uses: azure/setup-kubectl@v3
-      with:
-        version: 'latest'
-    
-    - name: Configure K3s
+
+    - name: Setup Kubeconfig
+      run: |
+        mkdir -p ~/.kube
+        echo "${{ secrets.K3S_CONFIG }}" | base64 -d > ~/.kube/config
+        chmod 600 ~/.kube/config
+        kubectl get nodes  # Vérification
+        
+    - name: Configure K3s Access
       uses: azure/k8s-set-context@v3
       with:
+        method: kubeconfig
+        cluster-type: generic
         kubeconfig: ${{ secrets.K3S_CONFIG }}
-    
-    - name: Create K3s Deployment and Service
+
+    - name: Create namespace
+      run: kubectl create ns ${{ env.NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
+
+    - name: Deploy Application
       run: |
-        cat <<EOF | kubectl apply -f -
+        kubectl apply -f - <<DEPLOYMENT
         apiVersion: apps/v1
         kind: Deployment
         metadata:
-          name: bibliotheque-frontend
-          namespace: bibliotheque
+          name: ${{ env.APP_NAME }}
+          namespace: ${{ env.NAMESPACE }}
         spec:
           replicas: 2
+          strategy:
+            rollingUpdate:
+              maxSurge: 1
+              maxUnavailable: 0
           selector:
             matchLabels:
-              app: bibliotheque-frontend
+              app: ${{ env.APP_NAME }}
           template:
             metadata:
               labels:
-                app: bibliotheque-frontend
+                app: ${{ env.APP_NAME }}
             spec:
               containers:
               - name: frontend
-                image: ${{ secrets.DOCKER_USERNAME }}/bibliotheque-frontend:${{ github.sha }}
+                image: ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
+                imagePullPolicy: Always
                 ports:
                 - containerPort: 80
                 resources:
@@ -146,33 +157,45 @@ jobs:
                     port: 80
                   initialDelaySeconds: 10
                   periodSeconds: 5
-        EOF
+                livenessProbe:
+                  httpGet:
+                    path: /
+                    port: 80
+                  initialDelaySeconds: 30
+                  periodSeconds: 10
+        DEPLOYMENT
 
-        cat <<EOF | kubectl apply -f -
+        kubectl apply -f - <<SERVICE
         apiVersion: v1
         kind: Service
         metadata:
-          name: bibliotheque-frontend-service
-          namespace: bibliotheque
+          name: ${{ env.APP_NAME }}-service
+          namespace: ${{ env.NAMESPACE }}
         spec:
           type: NodePort
           ports:
           - port: 80
             targetPort: 80
-            nodePort: 30080
           selector:
-            app: bibliotheque-frontend
-        EOF
-    
+            app: ${{ env.APP_NAME }}
+        SERVICE
+
     - name: Verify deployment
       run: |
-        kubectl rollout status deployment/bibliotheque-frontend -n bibliotheque --timeout=180s
-    
+        kubectl wait --for=condition=available \
+          --timeout=300s \
+          deployment/${{ env.APP_NAME }} \
+          -n ${{ env.NAMESPACE }}
+        
+        echo "Application URL:"
+        kubectl get svc ${{ env.APP_NAME }}-service -n ${{ env.NAMESPACE }} -o jsonpath='http://{.status.loadBalancer.ingress[0].ip}:{.spec.ports[0].nodePort}'
+
     - name: Rollback on failure
       if: failure()
       run: |
-        kubectl rollout undo deployment/bibliotheque-frontend -n bibliotheque
-        echo "Deployment failed, rolling back to previous version"
+        kubectl rollout undo deployment/${{ env.APP_NAME }} -n ${{ env.NAMESPACE }}
+        kubectl rollout status deployment/${{ env.APP_NAME }} -n ${{ env.NAMESPACE }} --timeout=120s
+        echo "Rollback completed to previous version"
 
   monitoring:
     needs: deploy
@@ -180,27 +203,26 @@ jobs:
     if: github.event_name != 'pull_request'
     
     steps:
-    - name: Configure Datadog
+    - name: Notify Datadog
       run: |
         curl -X POST "https://api.datadoghq.com/api/v1/events" \
         -H "Content-Type: application/json" \
         -H "DD-API-KEY: ${{ secrets.DATADOG_API_KEY }}" \
         -d @- << EOF
         {
-          "title": "Deployment: Frontend",
-          "text": "New version deployed: ${{ github.sha }}",
-          "tags": ["deployment", "frontend", "version:${{ github.sha }}"],
-          "alert_type": "info"
+          "title": "Frontend Deployment Success",
+          "text": "Version ${{ github.sha }} deployed to K3s cluster",
+          "tags": ["env:prod", "service:frontend", "commit:${{ github.sha }}"],
+          "alert_type": "success"
         }
         EOF
-    
-    - name: Setup Datadog RUM monitoring
+
+    - name: Setup RUM Monitoring
       run: |
-        echo "Setting up Datadog RUM monitoring for frontend application"
-        kubectl create configmap datadog-frontend-config \
-          --from-literal=api-key=${{ secrets.DATADOG_API_KEY }} \
-          --from-literal=app-key=${{ secrets.DATADOG_APP_KEY }} \
-          -n bibliotheque --dry-run=client -o yaml | kubectl apply -f -
+        kubectl create configmap datadog-rum-config \
+          --from-literal=application-id=${{ secrets.DATADOG_APP_ID }} \
+          --from-literal=client-token=${{ secrets.DATADOG_CLIENT_TOKEN }} \
+          -n ${{ env.NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
 
   k9s-guide:
     needs: monitoring
