@@ -80,7 +80,7 @@ jobs:
         context: .
         push: true
         tags: ${{ secrets.DOCKER_USERNAME }}/bibliotheque-frontend:latest
-        file: Dockerfile.frontend
+        
         
   deploy:
     needs: build-and-push
