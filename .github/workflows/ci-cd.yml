@@ -82,7 +82,9 @@ jobs:
           context: .
           push: true            # Pousse l'image vers Docker Hub
           load: true            # Charge l'image localement
-          tags: ${{ secrets.DOCKER_USERNAME }}/bibliotheque-frontend:latest
+          tags:
+             ${{ secrets.DOCKER_USERNAME }}/bibliotheque-frontend:latest
+             ${{ secrets.DOCKER_USERNAME }}/bibliotheque-frontend:${{ github.sha }}
       
       - name: Run Docker container
         run: |
