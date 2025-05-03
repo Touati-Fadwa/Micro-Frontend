@@ -10,6 +10,7 @@ env:
   DOCKER_IMAGE: ${{ secrets.DOCKER_USERNAME }}/bibliotheque-frontend
   NAMESPACE: bibliotheque
   APP_NAME: bibliotheque-frontend
+  K3S_NODE_PORT: 30080  # Port NodePort fixe si nécessaire
 
 jobs:
   build-and-test:
@@ -91,6 +92,9 @@ jobs:
           ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
         cache-from: type=registry,ref=${{ env.DOCKER_IMAGE }}:latest
         cache-to: type=inline
+        labels: |
+          org.opencontainers.image.source=${{ github.repositoryUrl }}
+          org.opencontainers.image.revision=${{ github.sha }}
 
   deploy:
     needs: build-and-push
@@ -98,35 +102,34 @@ jobs:
     if: github.event_name != 'pull_request'
     
     steps:
-
-    - name: Setup Kubeconfig
+    - name: Configure K3s Access
       run: |
         mkdir -p ~/.kube
         echo "${{ secrets.K3S_CONFIG }}" | base64 -d > ~/.kube/config
         chmod 600 ~/.kube/config
-        kubectl get nodes  # Vérification
-        
-    - name: Configure K3s Access
-      uses: azure/k8s-set-context@v3
-      with:
-        method: kubeconfig
-        cluster-type: generic
-        kubeconfig: ${{ secrets.K3S_CONFIG }}
+        kubectl cluster-info
 
     - name: Create namespace
-      run: kubectl create ns ${{ env.NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
+      run: |
+        kubectl create ns ${{ env.NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
+        kubectl label ns ${{ env.NAMESPACE }} env=prod  # Optionnel: étiquette le namespace
 
     - name: Deploy Application
       run: |
+        # Déploiement avec stratégie RollingUpdate
         kubectl apply -f - <<DEPLOYMENT
         apiVersion: apps/v1
         kind: Deployment
         metadata:
           name: ${{ env.APP_NAME }}
           namespace: ${{ env.NAMESPACE }}
+          labels:
+            app: ${{ env.APP_NAME }}
+            version: "${{ github.sha }}"
         spec:
           replicas: 2
           strategy:
+            type: RollingUpdate
             rollingUpdate:
               maxSurge: 1
               maxUnavailable: 0
@@ -151,51 +154,74 @@ jobs:
                   requests:
                     cpu: "0.2"
                     memory: "256Mi"
-                readinessProbe:
-                  httpGet:
-                    path: /
-                    port: 80
-                  initialDelaySeconds: 10
-                  periodSeconds: 5
                 livenessProbe:
                   httpGet:
                     path: /
                     port: 80
                   initialDelaySeconds: 30
                   periodSeconds: 10
+                  failureThreshold: 3
+                readinessProbe:
+                  httpGet:
+                    path: /
+                    port: 80
+                  initialDelaySeconds: 5
+                  periodSeconds: 5
+                  successThreshold: 1
+                  failureThreshold: 3
         DEPLOYMENT
 
+        # Service avec NodePort optionnel
         kubectl apply -f - <<SERVICE
         apiVersion: v1
         kind: Service
         metadata:
           name: ${{ env.APP_NAME }}-service
           namespace: ${{ env.NAMESPACE }}
+          annotations:
+            traefik.ingress.kubernetes.io/router.entrypoints: web
         spec:
           type: NodePort
           ports:
           - port: 80
             targetPort: 80
+            $(if [ -n "$K3S_NODE_PORT" ]; then echo "nodePort: $K3S_NODE_PORT"; fi)
           selector:
             app: ${{ env.APP_NAME }}
         SERVICE
 
     - name: Verify deployment
       run: |
+        # Vérification du déploiement
         kubectl wait --for=condition=available \
           --timeout=300s \
           deployment/${{ env.APP_NAME }} \
           -n ${{ env.NAMESPACE }}
         
-        echo "Application URL:"
-        kubectl get svc ${{ env.APP_NAME }}-service -n ${{ env.NAMESPACE }} -o jsonpath='http://{.status.loadBalancer.ingress[0].ip}:{.spec.ports[0].nodePort}'
+        # Affichage des informations de déploiement
+        echo "=== Deployment Status ==="
+        kubectl get deploy -n ${{ env.NAMESPACE }}
+        
+        echo "=== Service Details ==="
+        kubectl get svc -n ${{ env.NAMESPACE }}
+        
+        echo "=== Pods Status ==="
+        kubectl get pods -n ${{ env.NAMESPACE }}
+        
+        # Génération de l'URL d'accès
+        echo "Application accessible via:"
+        NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+        NODE_PORT=$(kubectl get svc ${{ env.APP_NAME }}-service -n ${{ env.NAMESPACE }} -o jsonpath='{.spec.ports[0].nodePort}')
+        echo "http://$NODE_IP:$NODE_PORT"
 
     - name: Rollback on failure
       if: failure()
       run: |
+        echo "!!! Deployment failed - Initiating rollback !!!"
         kubectl rollout undo deployment/${{ env.APP_NAME }} -n ${{ env.NAMESPACE }}
         kubectl rollout status deployment/${{ env.APP_NAME }} -n ${{ env.NAMESPACE }} --timeout=120s
-        echo "Rollback completed to previous version"
+        echo "Rollback to previous version completed"
+        exit 1  # Marque le job comme échoué
 
   monitoring:
     needs: deploy
@@ -210,9 +236,9 @@ jobs:
         -H "DD-API-KEY: ${{ secrets.DATADOG_API_KEY }}" \
         -d @- << EOF
         {
-          "title": "Frontend Deployment Success",
-          "text": "Version ${{ github.sha }} deployed to K3s cluster",
-          "tags": ["env:prod", "service:frontend", "commit:${{ github.sha }}"],
+          "title": "Frontend Deployment Notification",
+          "text": "New version ${{ github.sha }} deployed successfully to K3s cluster.\n\n- Namespace: ${{ env.NAMESPACE }}\n- Image: ${{ env.DOCKER_IMAGE }}:${{ github.sha }}",
+          "tags": ["env:production", "service:frontend", "deployment"],
           "alert_type": "success"
         }
         EOF
@@ -220,8 +246,9 @@ jobs:
     - name: Setup RUM Monitoring
       run: |
         kubectl create configmap datadog-rum-config \
-          --from-literal=application-id=${{ secrets.DATADOG_APP_ID }} \
-          --from-literal=client-token=${{ secrets.DATADOG_CLIENT_TOKEN }} \
+          --from-literal=applicationId=${{ secrets.DATADOG_APP_ID }} \
+          --from-literal=clientToken=${{ secrets.DATADOG_CLIENT_TOKEN }} \
+          --from-literal=env=production \
           -n ${{ env.NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
 
   k9s-guide:
@@ -230,22 +257,35 @@ jobs:
     if: github.event_name != 'pull_request'
     
     steps:
-    - name: Guide pour travailler avec K9s sur K3s
+    - name: Generate K9s Cheat Sheet
       run: |
-        echo "## Guide pour travailler avec K9s sur K3s"
-        echo ""
-        echo "1. Installer K9s: https://k9scli.io/"
-        echo "2. Configurer K9s pour utiliser votre kubeconfig K3s:"
-        echo "   export KUBECONFIG=/chemin/vers/votre/k3s.yaml"
-        echo "3. Lancer K9s: k9s"
-        echo ""
-        echo "Commandes utiles dans K9s:"
-        echo "- :deploy pour voir les déploiements"
-        echo "- :svc pour voir les services"
-        echo "- :pod pour voir les pods"
-        echo "- Ctrl+d pour supprimer une ressource"
-        echo "- Ctrl+k pour tuer un pod"
-        echo "- d pour décrire une ressource"
-        echo "- l pour voir les logs"
-        echo ""
-        echo "Pour accéder au frontend: http://IP_DU_NOEUD:30080"
+        cat << EOF > K9s_Guide.md
+        # K9s Management Guide for K3s
+
+        ## Basic Commands
+        - Connect to cluster: \`export KUBECONFIG=~/.kube/config\`
+        - Launch K9s: \`k9s -n ${{ env.NAMESPACE }}\`
+
+        ## Shortcuts
+        | Key | Action                  |
+        |-----|-------------------------|
+        | d   | Describe resource       |
+        | l   | View logs              |
+        | e   | Edit resource          |
+        | Ctrl+d | Delete resource     |
+        | Ctrl+k | Kill pod           |
+
+        ## Accessing Services
+        Frontend URL: http://\$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'):${{ env.K3S_NODE_PORT }}
+
+        ## Common Debugging
+        \`\`\`bash
+        # View failing pods
+        kubectl get pods -n ${{ env.NAMESPACE }} --field-selector=status.phase!=Running
+        
+        # Check deployment status
+        kubectl rollout status deployment/${{ env.APP_NAME }} -n ${{ env.NAMESPACE }}
+        \`\`\`
+        EOF
+        
+        echo "K9s guide generated as K9s_Guide.md"
