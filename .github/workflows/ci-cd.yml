@@ -85,7 +85,9 @@ jobs:
           tags: |
              ${{ secrets.DOCKER_USERNAME }}/bibliotheque-frontend:latest
              ${{ secrets.DOCKER_USERNAME }}/bibliotheque-frontend:${{ github.sha }}
-      
+          cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/bibliotheque-frontend:latest
+          cache-to: type=inline
+          
       - name: Run Docker container
         run: |
           docker run -d -p 3000:80 --name bibliotheque-frontend-container ${{ secrets.DOCKER_USERNAME }}/bibliotheque-frontend:latest
