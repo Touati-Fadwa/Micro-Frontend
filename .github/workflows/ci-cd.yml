@@ -108,6 +108,7 @@ jobs:
         echo "${{ secrets.K3S_CONFIG }}" | base64 -d > ~/.kube/config
         chmod 600 ~/.kube/config
         kubectl cluster-info
+        kubectl get nodes
 
     - name: Create namespace
       run: |
