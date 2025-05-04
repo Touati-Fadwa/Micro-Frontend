@@ -105,6 +105,7 @@ jobs:
     runs-on: self-hosted
     if: github.event_name != 'pull_request'
     
+    
     steps:
     - name: Configure K3s Access
       run: |
