@@ -110,7 +110,7 @@ jobs:
     - name: Configure K3s Access
       run: |
        mkdir -p ~/.kube
-       echo "${{ secrets.K3S_CONFIG }}" > ~/.kube/config
+       echo "${{ secrets.K3S_CONFIG1 }}" > ~/.kube/config
        chmod 600 ~/.kube/config
        # Test de connexion avec vérification SSL désactivée (temporaire)
        kubectl get nodes --insecure-skip-tls-verify=true
