@@ -33,7 +33,7 @@ jobs:
 
     - name: Build frontend
       run: npm run build
-      
+
 
     - name: Upload Frontend Artifact
       uses: actions/upload-artifact@v4
@@ -48,8 +48,8 @@ jobs:
     - name: SonarCloud Scan
       uses: SonarSource/sonarqube-scan-action@v5
       env:
-        SONAR_TOKEN: ${{ secrets.MFSONAR_TOKEN }}
-        GITHUB_TOKEN: ${{ secrets.MFSONAR_TOKEN }}
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.SONAR_TOKEN }}
       with:
         args: >
           -Dsonar.projectKey=Touati-Fadwa_Micro-Frontend
