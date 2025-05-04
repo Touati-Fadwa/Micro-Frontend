@@ -107,15 +107,12 @@ jobs:
     
 
     steps:
-    - name: Configure K3s Access
+      - name: Configure K3s
       run: |
-       mkdir -p ~/.kube
-       echo "${{ secrets.K3S_CONFIG1 }}" > ~/.kube/config
-       chmod 600 ~/.kube/config
-       # Test de connexion avec vérification SSL désactivée (temporaire)
-       kubectl get nodes --insecure-skip-tls-verify=true
-       # Vérification finale
-       kubectl cluster-info
+        mkdir -p ~/.kube
+        echo "${{ secrets.K3S_CONFIG }}" | base64 -d > ~/.kube/config
+        chmod 600 ~/.kube/config
+        kubectl get nodes  # Test
 
 
     - name: Create namespace
