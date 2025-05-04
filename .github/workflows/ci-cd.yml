@@ -41,6 +41,7 @@ jobs:
 
     - name: Run tests
       run: npm test -- --coverage
+      
 
     - name: SonarCloud Scan
       uses: SonarSource/sonarqube-scan-action@v5
@@ -109,7 +110,7 @@ jobs:
         chmod 600 ~/.kube/config
         kubectl cluster-info
         kubectl get nodes
-        
+
 
     - name: Create namespace
       run: |
@@ -129,7 +130,7 @@ jobs:
             app: ${{ env.APP_NAME }}
             version: "${{ github.sha }}"
         spec:
-          replicas: 2
+          replicas: 3
           strategy:
             type: RollingUpdate
             rollingUpdate:
