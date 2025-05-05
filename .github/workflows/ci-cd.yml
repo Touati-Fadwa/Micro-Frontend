@@ -109,13 +109,11 @@ jobs:
     steps:
     - name: Configure K3s Access
       run: |
-        mkdir -p ~/.kube
-        sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
-        sudo chown $USER:$USER ~/.kube/config
-        sed -i 's/127.0.0.1/192.168.1.114/g' ~/.kube/config
-        chmod 600 ~/.kube/config
-        kubectl get nodes  # Test connection
-
+         mkdir -p ~/.kube
+         echo "${{ secrets.K3S_CONFIG }}" | base64 -d > ~/.kube/config
+         sed -i 's/127.0.0.1/192.168.1.114/g' ~/.kube/config
+         chmod 600 ~/.kube/config
+         kubectl get nodes  # Test de connexion
 
     - name: Create namespace
       run: |
