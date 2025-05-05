@@ -232,69 +232,57 @@ jobs:
         echo "Rollback to previous version completed"
         exit 1  # Marque le job comme échoué
 
-  monitoring:
+  k9s-monitoring:
     needs: deploy
     runs-on: self-hosted
-    if: github.event_name != 'pull_request'
-    
     steps:
-    - name: Notify Datadog
+    - name: Install K9s
       run: |
-        curl -X POST "https://api.datadoghq.com/api/v1/events" \
-        -H "Content-Type: application/json" \
-        -H "DD-API-KEY: ${{ secrets.DATADOG_API_KEY }}" \
-        -d @- << EOF
-        {
-          "title": "Frontend Deployment Notification",
-          "text": "New version ${{ github.sha }} deployed successfully to K3s cluster.\n\n- Namespace: ${{ env.NAMESPACE }}\n- Image: ${{ env.DOCKER_IMAGE }}:${{ github.sha }}",
-          "tags": ["env:production", "service:frontend", "deployment"],
-          "alert_type": "success"
-        }
-        EOF
-
-    - name: Setup RUM Monitoring
+        curl -sS https://webinstall.dev/k9s | bash
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
+        
+    - name: K9s Cluster Inspection
       run: |
-        kubectl create configmap datadog-rum-config \
-          --from-literal=applicationId=${{ secrets.DATADOG_APP_ID }} \
-          --from-literal=clientToken=${{ secrets.DATADOG_CLIENT_TOKEN }} \
-          --from-literal=env=production \
-          -n ${{ env.NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
+        echo "=== K9s Cluster Report ===" > k9s-report.md
+        k9s info -n ${{ env.NAMESPACE }} >> k9s-report.md
+        k9s version >> k9s-report.md
+        echo "\n=== Pod Status ===" >> k9s-report.md
+        k9s pods -n ${{ env.NAMESPACE }} --headless >> k9s-report.md
+        
+    - name: Upload K9s Report
+      uses: actions/upload-artifact@v4
+      with:
+        name: k9s-cluster-report
+        path: k9s-report.md
 
-  k9s-guide:
-    needs: monitoring
+  k9s-cheatsheet:
     runs-on: self-hosted
-    if: github.event_name != 'pull_request'
-    
     steps:
     - name: Generate K9s Cheat Sheet
       run: |
-        cat << EOF > K9s_Guide.md
-        # K9s Management Guide for K3s
-
-        ## Basic Commands
-        - Connect to cluster: \`export KUBECONFIG=~/.kube/config\`
-        - Launch K9s: \`k9s -n ${{ env.NAMESPACE }}\`
-
-        ## Shortcuts
-        | Key | Action                  |
-        |-----|-------------------------|
-        | d   | Describe resource       |
-        | l   | View logs              |
-        | e   | Edit resource          |
-        | Ctrl+d | Delete resource     |
-        | Ctrl+k | Kill pod           |
-
-        ## Accessing Services
-        Frontend URL: http://\$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'):${{ env.K3S_NODE_PORT }}
-
-        ## Common Debugging
-        \`\`\`bash
-        # View failing pods
-        kubectl get pods -n ${{ env.NAMESPACE }} --field-selector=status.phase!=Running
+        cat << EOF > K9s_CheatSheet.md
+        # K9s Cheat Sheet for ${{ env.APP_NAME }}
         
-        # Check deployment status
-        kubectl rollout status deployment/${{ env.APP_NAME }} -n ${{ env.NAMESPACE }}
-        \`\`\`
+        ## Basic Navigation
+        - `:pods` - List pods
+        - `:deploy` - List deployments
+        - `:svc` - List services
+        
+        ## Debugging
+        - `l` - View logs
+        - `s` - Shell into pod
+        - `d` - Describe resource
+        
+        ## Deployment Management
+        - `Ctrl+d` - Delete pod (recreates if managed)
+        - `Shift+r` - Restart deployment
+        
+        ## Access Frontend
+        NODE_IP=\$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+        echo "Access at: http://\$NODE_IP:${{ env.K3S_NODE_PORT }}"
         EOF
         
-        echo "K9s guide generated as K9s_Guide.md"
+    - uses: actions/upload-artifact@v4
+      with:
+        name: k9s-cheatsheet
+        path: K9s_CheatSheet.md
