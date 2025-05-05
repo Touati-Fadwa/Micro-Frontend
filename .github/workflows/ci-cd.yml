@@ -114,6 +114,8 @@ jobs:
          sed -i 's/127.0.0.1/192.168.1.114/g' ~/.kube/config
          chmod 600 ~/.kube/config
          kubectl get nodes  # Test de connexion
+         kubectl cluster-info
+         kubectl get componentstatuses
 
     - name: Create namespace
       run: |
