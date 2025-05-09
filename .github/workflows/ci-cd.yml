@@ -12,6 +12,8 @@ env:
   APP_NAME: bibliotheque-frontend
   K3S_NODE_PORT: 30080  # Port NodePort fixe si nécessaire
 
+
+  
 jobs:
   build-and-test:
     runs-on: self-hosted
