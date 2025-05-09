@@ -13,7 +13,7 @@ env:
   K3S_NODE_PORT: 30080  # Port NodePort fixe si nécessaire
 
 
-  
+
 jobs:
   build-and-test:
     runs-on: self-hosted
@@ -113,7 +113,7 @@ jobs:
       run: |
          mkdir -p ~/.kube
          echo "${{ secrets.K3S_CONFIG }}" | base64 -d > ~/.kube/config
-         sed -i 's/127.0.0.1/192.168.1.114/g' ~/.kube/config
+         sed -i 's/127.0.0.1/192.168.43.114/g' ~/.kube/config
          chmod 600 ~/.kube/config
          kubectl get nodes  # Test de connexion
          kubectl cluster-info
