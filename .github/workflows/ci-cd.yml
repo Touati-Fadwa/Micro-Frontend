@@ -113,7 +113,6 @@ jobs:
       run: |
          mkdir -p ~/.kube
          echo "${{ secrets.K3S_CONFIG }}" | base64 -d > ~/.kube/config
-         sed -i 's/127.0.0.1/192.168.43.114/g' ~/.kube/config
          chmod 600 ~/.kube/config
          kubectl get nodes  # Test de connexion
          kubectl cluster-info
