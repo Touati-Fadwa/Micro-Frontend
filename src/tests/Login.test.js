@@ -6,10 +6,7 @@ describe("Login Component", () => {
   const mockOnLogin = jest.fn();
 
   beforeEach(() => {
-    // Réinitialiser les mocks avant chaque test
     jest.clearAllMocks();
-
-    // Mock de fetch par défaut (cas de succès)
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({
@@ -24,19 +21,15 @@ describe("Login Component", () => {
   test("renders login form correctly", () => {
     render(<Login onLogin={mockOnLogin} />);
 
-    // Vérifier que les éléments du formulaire sont bien rendus
-    expect(screen.getByText("Bibliothèque ISET Tozeur")).toBeInTheDocument();
-    expect(screen.getByText(/Connexion à votre compte/i)).toBeInTheDocument();
+    // Vérifications corrigées
+    expect(screen.getByText("Bibliothèque ISET")).toBeInTheDocument();
+    expect(screen.getByText("Connexion")).toBeInTheDocument();
     expect(screen.getByLabelText("Email")).toBeInTheDocument();
     expect(screen.getByLabelText("Mot de passe")).toBeInTheDocument();
     
-    // Vérification de l'étiquette pour le rôle
-    expect(screen.getByLabelText(/Sélectionnez votre rôle/i)).toBeInTheDocument();
-
-    // Vérifier la présence des options dans le select
-    const roleSelect = screen.getByLabelText(/Sélectionnez votre rôle/i);
-    expect(roleSelect).toHaveTextContent("Étudiant");
-    expect(roleSelect).toHaveTextContent("Administrateur");
+    // Vérification des boutons radio pour le rôle
+    expect(screen.getByLabelText("Étudiant")).toBeInTheDocument();
+    expect(screen.getByLabelText("Administrateur")).toBeInTheDocument();
 
     expect(screen.getByRole("button", { name: "Se connecter" })).toBeInTheDocument();
   });
@@ -48,13 +41,13 @@ describe("Login Component", () => {
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "test@example.com" } });
     fireEvent.change(screen.getByLabelText("Mot de passe"), { target: { value: "password123" } });
 
-    // Sélectionner le rôle admin
-    fireEvent.change(screen.getByLabelText(/Sélectionnez votre rôle/i), { target: { value: "admin" } });
+    // Sélectionner le rôle admin (corrigé)
+    fireEvent.click(screen.getByLabelText("Administrateur"));
 
     // Soumettre le formulaire
     fireEvent.click(screen.getByRole("button", { name: "Se connecter" }));
 
-    // Vérifier que fetch a été appelé avec les bons paramètres
+    // Vérifications
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(expect.any(String), {
         method: "POST",
@@ -69,7 +62,6 @@ describe("Login Component", () => {
       });
     });
 
-    // Vérifier que onLogin a été appelé avec les bonnes données
     await waitFor(() => {
       expect(mockOnLogin).toHaveBeenCalledWith({
         id: 1,
@@ -81,7 +73,6 @@ describe("Login Component", () => {
   });
 
   test("displays error message on failed login", async () => {
-    // Simuler une erreur de connexion
     global.fetch.mockResolvedValueOnce({
       ok: false,
       json: () => Promise.resolve({ message: "Email, mot de passe ou rôle incorrect" }),
@@ -93,17 +84,15 @@ describe("Login Component", () => {
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "wrong@example.com" } });
     fireEvent.change(screen.getByLabelText("Mot de passe"), { target: { value: "wrongpassword" } });
 
-    // Sélectionner le rôle admin
-    fireEvent.change(screen.getByLabelText(/Sélectionnez votre rôle/i), { target: { value: "admin" } });
+    // Sélection du rôle (corrigé)
+    fireEvent.click(screen.getByLabelText("Administrateur"));
 
     // Soumettre le formulaire
     fireEvent.click(screen.getByRole("button", { name: "Se connecter" }));
 
-    // Attendre que le message d'erreur apparaisse
+    // Vérification
     const errorMessage = await screen.findByText("Email, mot de passe ou rôle incorrect");
     expect(errorMessage).toBeInTheDocument();
-
-    // Vérifier que onLogin n'a pas été appelé
     expect(mockOnLogin).not.toHaveBeenCalled();
   });
 });
