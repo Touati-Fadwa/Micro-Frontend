@@ -1,13 +1,22 @@
 {
   "files": {
-    "main.css": "/static/css/main.0baaf78b.css",
-    "main.js": "/static/js/main.6b09a8fd.js",
+    "main.css": "/static/css/main.ba4479c5.css",
+    "main.js": "/static/js/main.7c763c52.js",
+    "static/media/litterature.jpg": "/static/media/litterature.1905477958305dea620a.jpg",
+    "static/media/histoire.jpg": "/static/media/histoire.34c52da75e01b74c92de.jpg",
+    "static/media/informatique.jpg": "/static/media/informatique.e3b9ea17eb4861b8c29c.jpg",
+    "static/media/sciences.jpg": "/static/media/sciences.c5c3bb4230da8e3cc777.jpg",
+    "static/media/economie.jpg": "/static/media/economie.ee830bbd43559e801d5c.jpg",
+    "static/media/avatar3.jpg": "/static/media/avatar3.0f99a66390707abf8cb1.jpg",
+    "static/media/langues.jpg": "/static/media/langues.b900f61494ac7950d653.jpg",
+    "static/media/avatar2.jpg": "/static/media/avatar2.2f2208e6535ee70ae653.jpg",
+    "static/media/avatar1.jpg": "/static/media/avatar1.66fe533fdaaf3a1c25c9.jpg",
     "index.html": "/index.html",
-    "main.0baaf78b.css.map": "/static/css/main.0baaf78b.css.map",
-    "main.6b09a8fd.js.map": "/static/js/main.6b09a8fd.js.map"
+    "main.ba4479c5.css.map": "/static/css/main.ba4479c5.css.map",
+    "main.7c763c52.js.map": "/static/js/main.7c763c52.js.map"
   },
   "entrypoints": [
-    "static/css/main.0baaf78b.css",
-    "static/js/main.6b09a8fd.js"
+    "static/css/main.ba4479c5.css",
+    "static/js/main.7c763c52.js"
   ]
 }
