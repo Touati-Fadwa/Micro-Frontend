@@ -101,10 +101,10 @@ jobs:
 
     - name: Configure K3s
       run: |
-        mkdir -p ~/.kube
-        echo "${{ secrets.K3S_CONFIG }}" > ~/.kube/config
-        chmod 600 ~/.kube/config
-        kubectl get nodes
+       mkdir -p ~/.kube
+       echo "${{ secrets.K3S_CONFIG }}" | base64 -d > ~/.kube/config  # Add base64 decoding
+       chmod 600 ~/.kube/config
+       kubectl get nodes
 
     - name: Create K3s Deployment and Service
       run: |
@@ -163,6 +163,21 @@ jobs:
     - name: Verify deployment
       run: |
         kubectl rollout status deployment/bibliotheque-frontend -n bibliotheque --timeout=180s
+        # Display deployment information
+              echo "=== Deployment Status ==="
+              kubectl get deploy -n $KUBE_NAMESPACE
+              
+              echo "=== Service Details ==="
+              kubectl get svc -n $KUBE_NAMESPACE
+              
+              echo "=== Pods Status ==="
+              kubectl get pods -n $KUBE_NAMESPACE
+              
+              # Generate access URL
+              echo "Application accessible via:"
+              NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+              NODE_PORT=$(kubectl get svc bibliotheque-auth-service -n $KUBE_NAMESPACE -o jsonpath='{.spec.ports[0].nodePort}')
+              echo "http://$NODE_IP:$NODE_PORT"
 
     - name: Rollback on failure
       if: failure()
