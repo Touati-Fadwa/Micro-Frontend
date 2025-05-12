@@ -82,8 +82,8 @@ jobs:
       with:
         context: .
         push: true
-        tags: ${{ secrets.DOCKER_USERNAME }}/bibliotheque-frontend:${{ github.sha }},${{ secrets.DOCKER_USERNAME }}/bibliotheque-frontend:latest
-        cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/bibliotheque-frontend:latest
+        tags: touatifadwa/bibliotheque-frontend:${{ github.sha }},touatifadwa/bibliotheque-frontend:latest
+        cache-from: type=registry,ref=touatifadwa/bibliotheque-frontend:latest
         cache-to: type=inline
 
   deploy:
@@ -118,57 +118,8 @@ jobs:
 
     - name: Create K3s Deployment and Service
       run: |
-        cat <<EOF | kubectl apply -f -
-        apiVersion: apps/v1
-        kind: Deployment
-        metadata:
-          name: bibliotheque-frontend
-          namespace: bibliotheque
-        spec:
-          replicas: 2
-          selector:
-            matchLabels:
-              app: bibliotheque-frontend
-          template:
-            metadata:
-              labels:
-                app: bibliotheque-frontend
-            spec:
-              containers:
-              - name: frontend
-                image: ${{ secrets.DOCKER_USERNAME }}/bibliotheque-frontend:${{ github.sha }}
-                ports:
-                - containerPort: 80
-                resources:
-                  limits:
-                    cpu: "0.5"
-                    memory: "512Mi"
-                  requests:
-                    cpu: "0.2"
-                    memory: "256Mi"
-                readinessProbe:
-                  httpGet:
-                    path: /
-                    port: 80
-                  initialDelaySeconds: 10
-                  periodSeconds: 5
-        EOF
-
-        cat <<EOF | kubectl apply -f -
-        apiVersion: v1
-        kind: Service
-        metadata:
-          name: bibliotheque-frontend-service
-          namespace: bibliotheque
-        spec:
-          type: NodePort
-          ports:
-          - port: 80
-            targetPort: 80
-            nodePort: 30080
-          selector:
-            app: bibliotheque-frontend
-        EOF
+        # Applique la configuration complète
+        kubectl apply -f k8s/frontend-deployment.yaml
 
     - name: Verify deployment
       run: |
