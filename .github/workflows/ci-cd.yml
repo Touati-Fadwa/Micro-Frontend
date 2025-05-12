@@ -119,7 +119,7 @@ jobs:
     - name: Create K3s Deployment and Service
       run: |
         # Applique la configuration complète
-        kubectl apply -f k8s/frontend-deployment.yaml
+        kubectl apply -f k8s/deployment.yaml
 
     - name: Verify deployment
       run: |
