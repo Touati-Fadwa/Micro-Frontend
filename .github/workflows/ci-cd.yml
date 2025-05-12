@@ -123,22 +123,27 @@ jobs:
 
     - name: Verify deployment
       run: |
-        kubectl rollout status deployment/bibliotheque-frontend -n bibliotheque --timeout=180s
-        # Display deployment information
-              echo "=== Deployment Status ==="
-              kubectl get deploy -n $KUBE_NAMESPACE
-              
-              echo "=== Service Details ==="
-              kubectl get svc -n $KUBE_NAMESPACE
-              
-              echo "=== Pods Status ==="
-              kubectl get pods -n $KUBE_NAMESPACE
-              
-              # Generate access URL
-              echo "Application accessible via:"
-              NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
-              NODE_PORT=$(kubectl get svc bibliotheque-auth-service -n $KUBE_NAMESPACE -o jsonpath='{.spec.ports[0].nodePort}')
-              echo "http://$NODE_IP:$NODE_PORT"
+          # Vérification du déploiement
+            kubectl wait --for=condition=available \
+             --timeout=300s \
+              deployment/bibliotheque-frontend \
+               -n bibliotheque
+  
+                  # Affichage des informations de déploiement
+                 echo "=== Deployment Status ==="
+                 kubectl get deploy -n bibliotheque
+  
+                echo "=== Service Details ==="
+                kubectl get svc -n bibliotheque
+  
+                echo "=== Pods Status ==="
+                kubectl get pods -n bibliotheque
+  
+              # Génération de l'URL d'accès
+               echo "Application accessible via:"
+               NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+             NODE_PORT=$(kubectl get svc bibliotheque-frontend-service -n bibliotheque -o jsonpath='{.spec.ports[0].nodePort}')
+             echo "http://$NODE_IP:$NODE_PORT"
 
     - name: Rollback on failure
       if: failure()
