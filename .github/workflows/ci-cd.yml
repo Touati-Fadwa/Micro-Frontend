@@ -150,3 +150,43 @@ jobs:
       run: |
         kubectl rollout undo deployment/bibliotheque-frontend -n bibliotheque
         echo "Deployment failed, rolling back to previous version"
+
+
+  cluster-monitoring:
+      needs: deploy
+      runs-on: self-hosted
+      timeout-minutes: 20
+      steps:
+        - name: 🔧 Configurer kubectl
+          run: |
+            mkdir -p ~/.kube
+            sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
+            sudo chown $USER:$USER ~/.kube/config
+            sed -i "s/127.0.0.1/$(hostname -I | awk '{print $1}')/g" ~/.kube/config
+
+        - name: ⎈ Installer la stack monitoring
+          run: |
+            kubectl create namespace monitoring || true
+            helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+            helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
+            --namespace monitoring \
+            --set grafana.adminUser="${{ secrets.GRAFANA_ADMIN_USER }}" \
+            --set grafana.adminPassword="${{ secrets.GRAFANA_ADMIN_PASSWORD }}" \
+            --set prometheus.service.type=NodePort \
+            --set prometheus.service.nodePort=$PROMETHEUS_PORT \
+            --set grafana.service.type=NodePort \
+            --set grafana.service.nodePort=$GRAFANA_PORT \
+            --set alertmanager.service.type=NodePort \
+            --set alertmanager.service.nodePort=$ALERTMANAGER_PORT
+
+        - name: 🌐 Afficher les accès
+          run: |
+           echo "=== MONITORING ==="
+           echo "Grafana : http://$(hostname -I | awk '{print $1}'):$GRAFANA_PORT"
+           echo "Prometheus : http://$(hostname -I | awk '{print $1}'):$PROMETHEUS_PORT"
+           echo "AlertManager : http://$(hostname -I | awk '{print $1}'):$ALERTMANAGER_PORT"
+           echo "-----------------"
+           echo "Identifiants Grafana : Voir les secrets GitHub"
+           echo "=== ACCÈS APPLICATION ==="
+           echo "Frontend : http://$(hostname -I | awk '{print $1}'):$NODE_PORT"
+           echo "Portainer : http://$(hostname -I | awk '{print $1}'):$PORTAINER_PORT"
