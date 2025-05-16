@@ -1,4 +1,4 @@
-name: Frontend CI/CD
+name: Full Stack CI/CD
 
 on:
   push:
@@ -6,16 +6,30 @@ on:
   pull_request:
     branches: [ main ]
 
+env:
+  # Configuration des ports
+  GRAFANA_PORT: 30300
+  PROMETHEUS_PORT: 30090
+  APP_PORT: 30080
+  
+  # Namespaces
+  APP_NAMESPACE: bibliotheque
+  MONITORING_NAMESPACE: monitoring
+  
+  # Images Docker
+  FRONTEND_IMAGE: touatifadwa/bibliotheque-frontend
+  PROMETHEUS_IMAGE: prom/prometheus:v2.40.0
+  GRAFANA_IMAGE: grafana/grafana:9.3.0
+
 jobs:
   build-and-test:
     runs-on: self-hosted
-
     steps:
     - uses: actions/checkout@v3
       with:
         fetch-depth: 0  # Nécessaire pour SonarQube
 
-    - name: Set up Node.js
+    - name: Setup Node.js
       uses: actions/setup-node@v3
       with:
         node-version: '18'
@@ -24,52 +38,37 @@ jobs:
     - name: Install dependencies
       run: npm ci
 
-    - name: 🏗️ Build frontend
+    - name: Build project
       run: CI='' npm run build
-
-    - name: 📦 Upload build artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: frontend-build
-        path: build/
 
     - name: Run tests
       run: npm test -- --coverage
 
-    - name: SonarCloud Scan
+    - name: SonarQube Analysis
       uses: SonarSource/sonarqube-scan-action@v5.0.0
       env:
         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
       with:
-        args: >
-          -Dsonar.projectKey=Touati-Fadwa_Micro-Frontend
-          -Dsonar.organization=touati-fadwa
-          -Dsonar.sources=src
-          -Dsonar.exclusions=**/*.test.tsx,**/*.test.ts,**/node_modules/**
-          -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
-          -Dsonar.branch.name=main
+        name: frontend-build
+        path: build/
 
   build-and-push:
     needs: build-and-test
     runs-on: self-hosted
     if: github.event_name != 'pull_request'
-
+    
     steps:
     - uses: actions/checkout@v3
+    - uses: actions/download-artifact@v4
+      with:
+        name: frontend-build
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v2
-      with: 
-        driver: docker-container
-        install: true
-
-    - name: 📦 Upload build artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: frontend-build
-        path: build/
-        overwrite: true 
 
     - name: Login to Docker Hub
       uses: docker/login-action@v2
@@ -80,102 +79,87 @@ jobs:
     - name: Build and push Docker image
       uses: docker/build-push-action@v4
       with:
-        context: .
         push: true
-        tags: touatifadwa/bibliotheque-frontend:${{ github.sha }},touatifadwa/bibliotheque-frontend:latest
-        cache-from: type=registry,ref=touatifadwa/bibliotheque-frontend:latest
+        tags: |
+          ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+          ${{ env.FRONTEND_IMAGE }}:latest
+        cache-from: type=registry,ref=${{ env.FRONTEND_IMAGE }}:latest
         cache-to: type=inline
 
   deploy:
     needs: build-and-push
     runs-on: self-hosted
     if: github.event_name != 'pull_request'
-
+    
     steps:
     - uses: actions/checkout@v3
 
-    - name: Set up kubectl
-      uses: azure/setup-kubectl@v3
-      with:
-        version: 'latest'
-
-    - name: Configure K3s
+    - name: Configure Kubernetes Access
       run: |
-        # Créer le dossier .kube
         mkdir -p ~/.kube
-    
-        # Décoder et enregistrer la config (méthode robuste)
-        echo "${{ secrets.K3S_CONFIG }}" > temp.b64
-        base64 -d temp.b64 > ~/.kube/config
-        rm -f temp.b64
-    
-        # Appliquer les bonnes permissions
+        echo "${{ secrets.K3S_CONFIG }}" | base64 -d > ~/.kube/config
+        
+        # Remplacer localhost par l'IP publique
+        SERVER_IP=$(curl -s ifconfig.me)
+        sed -i "s/127.0.0.1/${SERVER_IP}/g" ~/.kube/config
+        
+        # Sécuriser les permissions
         chmod 600 ~/.kube/config
-    
-        # Vérifier la connexion
+        
+        # Tester la connexion
         kubectl cluster-info
         kubectl get nodes
 
-    - name: Create K3s Deployment and Service
+    - name: Deploy Application
       run: |
-        # Applique la configuration complète
-        kubectl apply -f k8s/deployment.yaml
-
-    - name: Verify deployment
-      run: |
-          # Vérification du déploiement
-            kubectl wait --for=condition=available \
-             --timeout=300s \
-              deployment/bibliotheque-frontend \
-               -n bibliotheque
-  
-                  # Affichage des informations de déploiement
-                 echo "=== Deployment Status ==="
-                 kubectl get deploy -n bibliotheque
-  
-                echo "=== Service Details ==="
-                kubectl get svc -n bibliotheque
-  
-                echo "=== Pods Status ==="
-                kubectl get pods -n bibliotheque
-  
-              # Génération de l'URL d'accès
-               echo "Application accessible via:"
-               NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
-             NODE_PORT=$(kubectl get svc bibliotheque-frontend-service -n bibliotheque -o jsonpath='{.spec.ports[0].nodePort}')
-             echo "http://$NODE_IP:$NODE_PORT"
-
-    - name: Rollback on failure
-      if: failure()
-      run: |
-        kubectl rollout undo deployment/bibliotheque-frontend -n bibliotheque
-        echo "Deployment failed, rolling back to previous version"
+        # Créer le namespace s'il n'existe pas
+        kubectl create namespace ${{ env.APP_NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
+        
+        # Déployer l'application
+        kubectl apply -f k8s/deployment.yaml -n ${{ env.APP_NAMESPACE }}
+        
+        # Attendre que le déploiement soit prêt
+        kubectl wait --for=condition=available \
+          --timeout=300s \
+          deployment/bibliotheque-frontend \
+          -n ${{ env.APP_NAMESPACE }}
+        
+        # Afficher les informations de déploiement
+        echo "=== Application Déployée ==="
+        NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+        NODE_PORT=$(kubectl get svc bibliotheque-frontend-service -n ${{ env.APP_NAMESPACE }} -o jsonpath='{.spec.ports[0].nodePort}')
+        echo "Accès: http://${NODE_IP}:${NODE_PORT}"
 
   monitoring:
     needs: deploy
     runs-on: self-hosted
     timeout-minutes: 20
+    
     steps:
-    - name: 🔧 Configurer kubectl
+    - name: Configure Kubernetes Access
       run: |
         mkdir -p ~/.kube
-        sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
-        sudo chown $USER:$USER ~/.kube/config
-        sed -i "s/127.0.0.1/$(hostname -I | awk '{print $1}')/g" ~/.kube/config
-    
-    - name: Create monitoring namespace
+        echo "${{ secrets.K3S_CONFIG }}" | base64 -d > ~/.kube/config
+        chmod 600 ~/.kube/config
+
+    - name: Setup Monitoring Namespace
       run: |
-        kubectl create namespace monitoring
-    
-    - name: Deploy Prometheus
+        kubectl apply -f - <<EOF
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: ${{ env.MONITORING_NAMESPACE }}
+        EOF
+
+    - name: Deploy Prometheus Stack
       run: |
-        # ConfigMap pour Prometheus
-        cat <<EOF | kubectl apply -f -
+        # Prometheus ConfigMap
+        kubectl apply -f - <<EOF
         apiVersion: v1
         kind: ConfigMap
         metadata:
           name: prometheus-config
-          namespace: monitoring
+          namespace: ${{ env.MONITORING_NAMESPACE }}
         data:
           prometheus.yml: |
             global:
@@ -183,62 +167,26 @@ jobs:
               evaluation_interval: 15s
             
             scrape_configs:
-              - job_name: 'kubernetes-nodes'
+              - job_name: 'kubernetes-apiservers'
                 kubernetes_sd_configs:
-                  - role: node
+                - role: endpoints
+                scheme: https
+                tls_config:
+                  ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+                bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
                 relabel_configs:
-                  - action: labelmap
-                    regex: __meta_kubernetes_node_label_(.+)
-              
-              - job_name: 'kubernetes-pods'
-                kubernetes_sd_configs:
-                  - role: pod
-                relabel_configs:
-                  - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
-                    action: keep
-                    regex: true
-                  - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
-                    action: replace
-                    target_label: __metrics_path__
-                    regex: (.+)
-                  - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
-                    action: replace
-                    regex: ([^:]+)(?::\d+)?;(\d+)
-                    replacement: $1:$2
-                    target_label: __address__
-                  - action: labelmap
-                    regex: __meta_kubernetes_pod_label_(.+)
-                  - source_labels: [__meta_kubernetes_namespace]
-                    action: replace
-                    target_label: kubernetes_namespace
-                  - source_labels: [__meta_kubernetes_pod_name]
-                    action: replace
-                    target_label: kubernetes_pod_name
-              
-              - job_name: 'bibliotheque-services'
-                kubernetes_sd_configs:
-                  - role: service
-                  - namespaces:
-                      names:
-                        - bibliotheque
-                relabel_configs:
-                  - action: labelmap
-                    regex: __meta_kubernetes_service_label_(.+)
-                  - source_labels: [__meta_kubernetes_namespace]
-                    action: replace
-                    target_label: kubernetes_namespace
-                  - source_labels: [__meta_kubernetes_service_name]
-                    action: replace
-                    target_label: kubernetes_name
+                - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+                  action: keep
+                  regex: default;kubernetes;https
         EOF
-        
-        # Déploiement de Prometheus
-        cat <<EOF | kubectl apply -f -
+
+        # Prometheus Deployment
+        kubectl apply -f - <<EOF
         apiVersion: apps/v1
         kind: Deployment
         metadata:
           name: prometheus
-          namespace: monitoring
+          namespace: ${{ env.MONITORING_NAMESPACE }}
         spec:
           replicas: 1
           selector:
@@ -251,485 +199,64 @@ jobs:
             spec:
               containers:
               - name: prometheus
-                image: prom/prometheus:v2.40.0
+                image: ${{ env.PROMETHEUS_IMAGE }}
                 args:
-                  - "--config.file=/etc/prometheus/prometheus.yml"
-                  - "--storage.tsdb.path=/prometheus"
+                - "--config.file=/etc/prometheus/prometheus.yml"
                 ports:
                 - containerPort: 9090
                 volumeMounts:
-                - name: prometheus-config
+                - name: config
                   mountPath: /etc/prometheus
-                - name: prometheus-storage
-                  mountPath: /prometheus
               volumes:
-              - name: prometheus-config
+              - name: config
                 configMap:
                   name: prometheus-config
-              - name: prometheus-storage
-                emptyDir: {}
         EOF
-        
-        # Service pour Prometheus
-        cat <<EOF | kubectl apply -f -
+
+        # Prometheus Service
+        kubectl apply -f - <<EOF
         apiVersion: v1
         kind: Service
         metadata:
           name: prometheus
-          namespace: monitoring
+          namespace: ${{ env.MONITORING_NAMESPACE }}
         spec:
-          selector:
-            app: prometheus
+          type: NodePort
           ports:
           - port: 9090
             targetPort: 9090
-          type: ClusterIP
+            nodePort: ${{ env.PROMETHEUS_PORT }}
+          selector:
+            app: prometheus
         EOF
-    
+
     - name: Deploy Grafana
       run: |
-        # ConfigMap pour les datasources Grafana
-        cat <<EOF | kubectl apply -f -
+        # Grafana ConfigMap
+        kubectl apply -f - <<EOF
         apiVersion: v1
         kind: ConfigMap
         metadata:
           name: grafana-datasources
-          namespace: monitoring
+          namespace: ${{ env.MONITORING_NAMESPACE }}
         data:
           prometheus.yaml: |
             apiVersion: 1
             datasources:
-              - name: Prometheus
-                type: prometheus
-                url: http://prometheus:9090
-                access: proxy
-                isDefault: true
+            - name: Prometheus
+              type: prometheus
+              url: http://prometheus:9090
+              access: proxy
+              isDefault: true
         EOF
-        
-        # ConfigMap pour les dashboards Grafana
-        cat <<EOF | kubectl apply -f -
-        apiVersion: v1
-        kind: ConfigMap
-        metadata:
-          name: grafana-dashboards
-          namespace: monitoring
-        data:
-          k3s-dashboard.json: |
-            {
-              "annotations": {
-                "list": [
-                  {
-                    "builtIn": 1,
-                    "datasource": "-- Grafana --",
-                    "enable": true,
-                    "hide": true,
-                    "iconColor": "rgba(0, 211, 255, 1)",
-                    "name": "Annotations & Alerts",
-                    "type": "dashboard"
-                  }
-                ]
-              },
-              "editable": true,
-              "gnetId": null,
-              "graphTooltip": 0,
-              "id": 1,
-              "links": [],
-              "panels": [
-                {
-                  "aliasColors": {},
-                  "bars": false,
-                  "dashLength": 10,
-                  "dashes": false,
-                  "datasource": "Prometheus",
-                  "fill": 1,
-                  "fillGradient": 0,
-                  "gridPos": {
-                    "h": 8,
-                    "w": 12,
-                    "x": 0,
-                    "y": 0
-                  },
-                  "hiddenSeries": false,
-                  "id": 2,
-                  "legend": {
-                    "avg": false,
-                    "current": false,
-                    "max": false,
-                    "min": false,
-                    "show": true,
-                    "total": false,
-                    "values": false
-                  },
-                  "lines": true,
-                  "linewidth": 1,
-                  "nullPointMode": "null",
-                  "options": {
-                    "dataLinks": []
-                  },
-                  "percentage": false,
-                  "pointradius": 2,
-                  "points": false,
-                  "renderer": "flot",
-                  "seriesOverrides": [],
-                  "spaceLength": 10,
-                  "stack": false,
-                  "steppedLine": false,
-                  "targets": [
-                    {
-                      "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\\"bibliotheque\\"}[5m])) by (pod)",
-                      "refId": "A"
-                    }
-                  ],
-                  "thresholds": [],
-                  "timeFrom": null,
-                  "timeRegions": [],
-                  "timeShift": null,
-                  "title": "CPU Usage by Pod",
-                  "tooltip": {
-                    "shared": true,
-                    "sort": 0,
-                    "value_type": "individual"
-                  },
-                  "type": "graph",
-                  "xaxis": {
-                    "buckets": null,
-                    "mode": "time",
-                    "name": null,
-                    "show": true,
-                    "values": []
-                  },
-                  "yaxes": [
-                    {
-                      "format": "short",
-                      "label": null,
-                      "logBase": 1,
-                      "max": null,
-                      "min": null,
-                      "show": true
-                    },
-                    {
-                      "format": "short",
-                      "label": null,
-                      "logBase": 1,
-                      "max": null,
-                      "min": null,
-                      "show": true
-                    }
-                  ],
-                  "yaxis": {
-                    "align": false,
-                    "alignLevel": null
-                  }
-                },
-                {
-                  "aliasColors": {},
-                  "bars": false,
-                  "dashLength": 10,
-                  "dashes": false,
-                  "datasource": "Prometheus",
-                  "fill": 1,
-                  "fillGradient": 0,
-                  "gridPos": {
-                    "h": 8,
-                    "w": 12,
-                    "x": 12,
-                    "y": 0
-                  },
-                  "hiddenSeries": false,
-                  "id": 4,
-                  "legend": {
-                    "avg": false,
-                    "current": false,
-                    "max": false,
-                    "min": false,
-                    "show": true,
-                    "total": false,
-                    "values": false
-                  },
-                  "lines": true,
-                  "linewidth": 1,
-                  "nullPointMode": "null",
-                  "options": {
-                    "dataLinks": []
-                  },
-                  "percentage": false,
-                  "pointradius": 2,
-                  "points": false,
-                  "renderer": "flot",
-                  "seriesOverrides": [],
-                  "spaceLength": 10,
-                  "stack": false,
-                  "steppedLine": false,
-                  "targets": [
-                    {
-                      "expr": "sum(container_memory_usage_bytes{namespace=\\"bibliotheque\\"}) by (pod)",
-                      "refId": "A"
-                    }
-                  ],
-                  "thresholds": [],
-                  "timeFrom": null,
-                  "timeRegions": [],
-                  "timeShift": null,
-                  "title": "Memory Usage by Pod",
-                  "tooltip": {
-                    "shared": true,
-                    "sort": 0,
-                    "value_type": "individual"
-                  },
-                  "type": "graph",
-                  "xaxis": {
-                    "buckets": null,
-                    "mode": "time",
-                    "name": null,
-                    "show": true,
-                    "values": []
-                  },
-                  "yaxes": [
-                    {
-                      "format": "bytes",
-                      "label": null,
-                      "logBase": 1,
-                      "max": null,
-                      "min": null,
-                      "show": true
-                    },
-                    {
-                      "format": "short",
-                      "label": null,
-                      "logBase": 1,
-                      "max": null,
-                      "min": null,
-                      "show": true
-                    }
-                  ],
-                  "yaxis": {
-                    "align": false,
-                    "alignLevel": null
-                  }
-                },
-                {
-                  "aliasColors": {},
-                  "bars": false,
-                  "dashLength": 10,
-                  "dashes": false,
-                  "datasource": "Prometheus",
-                  "fill": 1,
-                  "fillGradient": 0,
-                  "gridPos": {
-                    "h": 8,
-                    "w": 12,
-                    "x": 0,
-                    "y": 8
-                  },
-                  "hiddenSeries": false,
-                  "id": 6,
-                  "legend": {
-                    "avg": false,
-                    "current": false,
-                    "max": false,
-                    "min": false,
-                    "show": true,
-                    "total": false,
-                    "values": false
-                  },
-                  "lines": true,
-                  "linewidth": 1,
-                  "nullPointMode": "null",
-                  "options": {
-                    "dataLinks": []
-                  },
-                  "percentage": false,
-                  "pointradius": 2,
-                  "points": false,
-                  "renderer": "flot",
-                  "seriesOverrides": [],
-                  "spaceLength": 10,
-                  "stack": false,
-                  "steppedLine": false,
-                  "targets": [
-                    {
-                      "expr": "sum(rate(container_network_receive_bytes_total{namespace=\\"bibliotheque\\"}[5m])) by (pod)",
-                      "refId": "A"
-                    }
-                  ],
-                  "thresholds": [],
-                  "timeFrom": null,
-                  "timeRegions": [],
-                  "timeShift": null,
-                  "title": "Network Receive by Pod",
-                  "tooltip": {
-                    "shared": true,
-                    "sort": 0,
-                    "value_type": "individual"
-                  },
-                  "type": "graph",
-                  "xaxis": {
-                    "buckets": null,
-                    "mode": "time",
-                    "name": null,
-                    "show": true,
-                    "values": []
-                  },
-                  "yaxes": [
-                    {
-                      "format": "bytes",
-                      "label": null,
-                      "logBase": 1,
-                      "max": null,
-                      "min": null,
-                      "show": true
-                    },
-                    {
-                      "format": "short",
-                      "label": null,
-                      "logBase": 1,
-                      "max": null,
-                      "min": null,
-                      "show": true
-                    }
-                  ],
-                  "yaxis": {
-                    "align": false,
-                    "alignLevel": null
-                  }
-                },
-                {
-                  "aliasColors": {},
-                  "bars": false,
-                  "dashLength": 10,
-                  "dashes": false,
-                  "datasource": "Prometheus",
-                  "fill": 1,
-                  "fillGradient": 0,
-                  "gridPos": {
-                    "h": 8,
-                    "w": 12,
-                    "x": 12,
-                    "y": 8
-                  },
-                  "hiddenSeries": false,
-                  "id": 8,
-                  "legend": {
-                    "avg": false,
-                    "current": false,
-                    "max": false,
-                    "min": false,
-                    "show": true,
-                    "total": false,
-                    "values": false
-                  },
-                  "lines": true,
-                  "linewidth": 1,
-                  "nullPointMode": "null",
-                  "options": {
-                    "dataLinks": []
-                  },
-                  "percentage": false,
-                  "pointradius": 2,
-                  "points": false,
-                  "renderer": "flot",
-                  "seriesOverrides": [],
-                  "spaceLength": 10,
-                  "stack": false,
-                  "steppedLine": false,
-                  "targets": [
-                    {
-                      "expr": "sum(rate(container_network_transmit_bytes_total{namespace=\\"bibliotheque\\"}[5m])) by (pod)",
-                      "refId": "A"
-                    }
-                  ],
-                  "thresholds": [],
-                  "timeFrom": null,
-                  "timeRegions": [],
-                  "timeShift": null,
-                  "title": "Network Transmit by Pod",
-                  "tooltip": {
-                    "shared": true,
-                    "sort": 0,
-                    "value_type": "individual"
-                  },
-                  "type": "graph",
-                  "xaxis": {
-                    "buckets": null,
-                    "mode": "time",
-                    "name": null,
-                    "show": true,
-                    "values": []
-                  },
-                  "yaxes": [
-                    {
-                      "format": "bytes",
-                      "label": null,
-                      "logBase": 1,
-                      "max": null,
-                      "min": null,
-                      "show": true
-                    },
-                    {
-                      "format": "short",
-                      "label": null,
-                      "logBase": 1,
-                      "max": null,
-                      "min": null,
-                      "show": true
-                    }
-                  ],
-                  "yaxis": {
-                    "align": false,
-                    "alignLevel": null
-                  }
-                }
-              ],
-              "refresh": "10s",
-              "schemaVersion": 22,
-              "style": "dark",
-              "tags": [],
-              "templating": {
-                "list": []
-              },
-              "time": {
-                "from": "now-6h",
-                "to": "now"
-              },
-              "timepicker": {
-                "refresh_intervals": [
-                  "5s",
-                  "10s",
-                  "30s",
-                  "1m",
-                  "5m",
-                  "15m",
-                  "30m",
-                  "1h",
-                  "2h",
-                  "1d"
-                ]
-              },
-              "timezone": "",
-              "title": "BiblioTech Dashboard",
-              "uid": "bibliotech",
-              "version": 1
-            }
-          dashboard-providers.yaml: |
-            apiVersion: 1
-            providers:
-            - name: 'default'
-              orgId: 1
-              folder: ''
-              type: file
-              disableDeletion: false
-              editable: true
-              options:
-                path: /var/lib/grafana/dashboards
-        EOF
-        
-        # Déploiement de Grafana
-        cat <<EOF | kubectl apply -f -
+
+        # Grafana Deployment
+        kubectl apply -f - <<EOF
         apiVersion: apps/v1
         kind: Deployment
         metadata:
           name: grafana
-          namespace: monitoring
+          namespace: ${{ env.MONITORING_NAMESPACE }}
         spec:
           replicas: 1
           selector:
@@ -742,114 +269,69 @@ jobs:
             spec:
               containers:
               - name: grafana
-                image: grafana/grafana:9.3.0
+                image: ${{ env.GRAFANA_IMAGE }}
                 ports:
                 - containerPort: 3000
-                env:
-                - name: GF_SECURITY_ADMIN_USER
-                  value: admin
-                - name: GF_SECURITY_ADMIN_PASSWORD
-                  value: admin
-                - name: GF_USERS_ALLOW_SIGN_UP
-                  value: "false"
                 volumeMounts:
-                - name: grafana-storage
-                  mountPath: /var/lib/grafana
-                - name: grafana-datasources
+                - name: datasources
                   mountPath: /etc/grafana/provisioning/datasources
-                - name: grafana-dashboards
-                  mountPath: /var/lib/grafana/dashboards
-                - name: grafana-dashboard-providers
-                  mountPath: /etc/grafana/provisioning/dashboards
               volumes:
-              - name: grafana-storage
-                emptyDir: {}
-              - name: grafana-datasources
+              - name: datasources
                 configMap:
                   name: grafana-datasources
-              - name: grafana-dashboards
-                configMap:
-                  name: grafana-dashboards
-                  items:
-                  - key: k3s-dashboard.json
-                    path: k3s-dashboard.json
-              - name: grafana-dashboard-providers
-                configMap:
-                  name: grafana-dashboards
-                  items:
-                  - key: dashboard-providers.yaml
-                    path: dashboards.yaml
         EOF
-        
-        # Service pour Grafana
-        cat <<EOF | kubectl apply -f -
+
+        # Grafana Service
+        kubectl apply -f - <<EOF
         apiVersion: v1
         kind: Service
         metadata:
           name: grafana
-          namespace: monitoring
+          namespace: ${{ env.MONITORING_NAMESPACE }}
         spec:
-          selector:
-            app: grafana
+          type: NodePort
           ports:
           - port: 3000
             targetPort: 3000
-          type: NodePort
-          nodePort: 30300
+            nodePort: ${{ env.GRAFANA_PORT }}
+          selector:
+            app: grafana
         EOF
-    
-    - name: Create monitoring guide
+
+    - name: Verify Monitoring Stack
       run: |
-        echo "## Guide de monitoring K3s avec Grafana"
-        echo ""
-        echo "Le monitoring a été déployé avec succès. Voici comment y accéder:"
-        echo ""
-        echo "### Accès à Grafana"
-        echo "- URL: http://IP_DU_NOEUD:30300"
-        echo "- Identifiants: admin/admin"
-        echo ""
-        echo "### Dashboard préconfiguré"
-        echo "Un dashboard 'BiblioTech Dashboard' est disponible avec les métriques suivantes:"
-        echo "- Utilisation CPU par pod"
-        echo "- Utilisation mémoire par pod"
-        echo "- Trafic réseau entrant/sortant par pod"
-        echo ""
-        echo "### Accès à Prometheus"
-        echo "- URL: http://IP_DU_NOEUD:30090 (si vous exposez le service)"
-        echo ""
-        echo "### Annotations pour les pods"
-        echo "Pour que vos pods soient automatiquement découverts par Prometheus, ajoutez ces annotations:"
-        echo "```yaml"
-        echo "metadata:"
-        echo "  annotations:"
-        echo "    prometheus.io/scrape: \"true\""
-        echo "    prometheus.io/port: \"<port>\""
-        echo "    prometheus.io/path: \"/metrics\""
-        echo "```"
+        # Vérifier Prometheus
+        kubectl rollout status deployment/prometheus -n ${{ env.MONITORING_NAMESPACE }} --timeout=180s
+        
+        # Vérifier Grafana
+        kubectl rollout status deployment/grafana -n ${{ env.MONITORING_NAMESPACE }} --timeout=180s
+        
+        # Afficher les URLs d'accès
+        NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[0].address}')
+        echo "=== Monitoring Stack ==="
+        echo "Grafana:    http://${NODE_IP}:${{ env.GRAFANA_PORT }} (admin/admin)"
+        echo "Prometheus: http://${NODE_IP}:${{ env.PROMETHEUS_PORT }}"
 
   k9s-guide:
     needs: monitoring
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request'
-    
     steps:
-    - name: Guide pour travailler avec K9s sur K3s
+    - name: Generate Access Guide
       run: |
-        echo "## Guide pour travailler avec K9s sur K3s"
-        echo ""
-        echo "1. Installer K9s: https://k9scli.io/"
-        echo "2. Configurer K9s pour utiliser votre kubeconfig K3s:"
-        echo "   export KUBECONFIG=/chemin/vers/votre/k3s.yaml"
-        echo "3. Lancer K9s: k9s"
-        echo ""
-        echo "Commandes utiles dans K9s:"
-        echo "- :deploy pour voir les déploiements"
-        echo "- :svc pour voir les services"
-        echo "- :pod pour voir les pods"
-        echo "- Ctrl+d pour supprimer une ressource"
-        echo "- Ctrl+k pour tuer un pod"
-        echo "- d pour décrire une ressource"
-        echo "- l pour voir les logs"
-        echo ""
-        echo "Pour accéder au frontend: http://IP_DU_NOEUD:30080"
-        echo "Pour accéder à Grafana: http://IP_DU_NOEUD:30300"
+        NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[0].address}')
+        cat <<EOF
+        ==== Guide d'Accès ====
+        Application Frontend: http://${NODE_IP}:${{ env.APP_PORT }}
+        Grafana Dashboard:    http://${NODE_IP}:${{ env.GRAFANA_PORT }} (admin/admin)
+        Prometheus:           http://${NODE_IP}:${{ env.PROMETHEUS_PORT }}
+        
+        ==== Commandes Utiles ====
+        # Accéder au dashboard K9s
+        k9s -n ${{ env.APP_NAMESPACE }}
+        
+        # Voir les logs
+        kubectl logs -f <pod-name> -n ${{ env.APP_NAMESPACE }}
+        
+        # Redémarrer le déploiement
+        kubectl rollout restart deployment/bibliotheque-frontend -n ${{ env.APP_NAMESPACE }}
+        EOF
