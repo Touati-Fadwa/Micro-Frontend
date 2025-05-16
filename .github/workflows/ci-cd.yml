@@ -165,9 +165,21 @@ jobs:
     
     - name: Configure K3s
       run: |
-       mkdir -p ~/.kube
-       echo "${{ secrets.K3S_CONFIG }}" | base64 --decode > ~/.kube/config
-       kubectl get nodes  # Test
+        # Créer le dossier .kube
+        mkdir -p ~/.kube
+    
+        # Décoder et enregistrer la config (méthode robuste)
+        echo "${{ secrets.K3S_CONFIG }}" > temp.b64
+        base64 -d temp.b64 > ~/.kube/config
+        rm -f temp.b64
+    
+        # Appliquer les bonnes permissions
+        chmod 600 ~/.kube/config
+    
+        # Vérifier la connexion
+        kubectl cluster-info
+        kubectl get nodes
+
     
     - name: Create monitoring namespace
       run: |
