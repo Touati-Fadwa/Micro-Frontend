@@ -151,24 +151,17 @@ jobs:
         kubectl rollout undo deployment/bibliotheque-frontend -n bibliotheque
         echo "Deployment failed, rolling back to previous version"
 
-
   monitoring:
     needs: deploy
-    runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request'
-    
+    runs-on: self-hosted
+    timeout-minutes: 20
     steps:
-    - name: Set up kubectl
-      uses: azure/setup-kubectl@v3
-      with:
-        version: 'latest'
-    
     - name: 🔧 Configurer kubectl
       run: |
-           mkdir -p ~/.kube
-           sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
-           sudo chown $USER:$USER ~/.kube/config
-            sed -i "s/127.0.0.1/$(hostname -I | awk '{print $1}')/g" ~/.kube/config
+        mkdir -p ~/.kube
+        sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
+        sudo chown $USER:$USER ~/.kube/config
+        sed -i "s/127.0.0.1/$(hostname -I | awk '{print $1}')/g" ~/.kube/config
     
     - name: Create monitoring namespace
       run: |
