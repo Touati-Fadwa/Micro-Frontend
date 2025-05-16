@@ -164,9 +164,10 @@ jobs:
         version: 'latest'
     
     - name: Configure K3s
-      uses: azure/k8s-set-context@v3
-      with:
-        kubeconfig: ${{ secrets.K3S_CONFIG }}
+      run: |
+       mkdir -p ~/.kube
+       echo "${{ secrets.K3S_CONFIG }}" | base64 --decode > ~/.kube/config
+       kubectl get nodes  # Test
     
     - name: Create monitoring namespace
       run: |
