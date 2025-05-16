@@ -163,22 +163,25 @@ jobs:
       with:
         version: 'latest'
     
-    - name: Configure K3s
+    - name: 🔧 Configurer kubectl
       run: |
-        # Créer le dossier .kube
-        mkdir -p ~/.kube
+         # 1. Créer le dossier .kube
+         mkdir -p ~/.kube
     
-        # Décoder et enregistrer la config (méthode robuste)
-        echo "${{ secrets.K3S_CONFIG }}" > temp.b64
-        base64 -d temp.b64 > ~/.kube/config
-        rm -f temp.b64
+         # 2. Copier la configuration K3s (avec droits sudo)
+          sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
     
-        # Appliquer les bonnes permissions
-        chmod 600 ~/.kube/config
+         # 3. Changer les permissions (important pour la sécurité)
+         sudo chown $USER:$USER ~/.kube/config
+         chmod 600 ~/.kube/config
     
-        # Vérifier la connexion
-        kubectl cluster-info
-        kubectl get nodes
+         # 4. Remplacer l'IP locale par l'IP du serveur
+         SERVER_IP=$(hostname -I | awk '{print $1}')
+         sed -i "s/127.0.0.1/${SERVER_IP}/g" ~/.kube/config
+    
+         # 5. Vérification
+         kubectl cluster-info
+           kubectl get nodes
 
     
     - name: Create monitoring namespace
