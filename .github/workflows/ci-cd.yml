@@ -139,7 +139,7 @@ jobs:
     
     - name: Login to ArgoCD
       run: |
-        argocd login ${{ secrets.ARGOCD_SERVER }} --username ${{ secrets.ARGOCD_username }} --password ${{ secrets.ARGOCD_password }} --insecure
+        argocd login ${{ secrets.ARGOCD_server }} --username ${{ secrets.ARGOCD_username }} --password ${{ secrets.ARGOCD_password }} --insecure
     
     - name: Sync ArgoCD Application
       run: |
