@@ -130,6 +130,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name != 'pull_request'
     
+    
     steps:
     - name: Install ArgoCD CLI
       run: |
