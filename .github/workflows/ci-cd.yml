@@ -141,4 +141,45 @@ jobs:
         NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
         NODE_PORT=$(kubectl get svc bibliotheque-frontend-service -n ${{ env.APP_NAMESPACE }} -o jsonpath='{.spec.ports[0].nodePort}')
         echo "http://$NODE_IP:$NODE_PORT"
+  argocd-sync:
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
     
+    steps:
+      # 1. Installation du CLI ArgoCD
+      - name: Install ArgoCD CLI
+        run: |
+          curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          chmod +x argocd
+          sudo mv argocd /usr/local/bin
+          argocd version --client
+
+      # 2. Connexion à ArgoCD
+      - name: Login to ArgoCD
+        run: |
+          argocd login ${{ secrets.ARGOCD_server }} \
+            --username ${{ secrets.ARGOCD_username }} \
+            --password ${{ secrets.ARGOCD_password }} \
+            --grpc-web
+
+      # 3. Déploiement et synchronisation
+      - name: Deploy and Sync Application
+        run: |
+          # Création simplifiée de l'application
+          if ! argocd app get bibliotheque-frontend; then
+            argocd app create bibliotheque-frontend \
+              --repo https://github.com/votre-repo/bibliotheque.git \
+              --path k8s/manifests \
+              --dest-namespace default \
+              --dest-server https://kubernetes.default.svc \
+              --sync-policy automated \
+              --auto-prune
+          fi
+
+          # Synchronisation forcée
+          argocd app sync bibliotheque-frontend --force
+          
+          # Attente et vérification simplifiée
+          argocd app wait bibliotheque-frontend --healthy --timeout 180
+          argocd app get bibliotheque-frontend | grep -q "Synced.*Healthy" || exit 1
