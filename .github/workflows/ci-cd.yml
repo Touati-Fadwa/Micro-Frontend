@@ -126,10 +126,19 @@ jobs:
           deployment/bibliotheque-frontend \
           -n ${{ env.APP_NAMESPACE }}
         
-        # Afficher les informations de déploiement
-        echo "=== Application Déployée ==="
+    - name: Display deployment information
+      run: |
+        echo "=== Deployment Status ==="
+        kubectl get deploy -n ${{ env.APP_NAMESPACE }}
+        
+        echo "=== Service Details ==="
+        kubectl get svc -n ${{ env.APP_NAMESPACE }}
+        
+        echo "=== Pods Status ==="
+        kubectl get pods -n ${{ env.APP_NAMESPACE }}
+        
+        echo "Application accessible via:"
         NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
         NODE_PORT=$(kubectl get svc bibliotheque-frontend-service -n ${{ env.APP_NAMESPACE }} -o jsonpath='{.spec.ports[0].nodePort}')
-        echo "Accès: http://${NODE_IP}:${NODE_PORT}"
-
-  
+        echo "http://$NODE_IP:$NODE_PORT"
+    
