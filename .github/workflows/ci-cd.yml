@@ -147,44 +147,45 @@ jobs:
     if: github.event_name != 'pull_request'
     
     steps:
-      # 1. Installer kubectl et ArgoCD CLI
-    - name: Setup Tools
+      # 1. Installation des outils
+    - name: Install Kubernetes Tools
       run: |
-        # Installer kubectl
         curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
         sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-
-        # Installer ArgoCD CLI
+        
         curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
         sudo install -m 755 argocd /usr/local/bin/argocd
 
-    # 2. Installer ArgoCD dans le cluster
-    - name: Install ArgoCD Server
+    # 2. Installation d'ArgoCD avec port personnalisé
+    - name: Setup ArgoCD Server
       run: |
         kubectl create namespace argocd || true
         kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
         
-        # Exposer ArgoCD en local
-        kubectl port-forward svc/argocd-server -n argocd 8080:443 &
+        # Modification du service pour utiliser un port différent
+        kubectl patch svc argocd-server -n argocd -p '{"spec":{"ports":[{"name":"https","port":443,"targetPort":8443}]}}'
+        
+        # Port-forward avec le port personnalisé
+        kubectl port-forward svc/argocd-server -n argocd 8443:443 --address=0.0.0.0 &
         sleep 10
 
-    # 3. Récupérer le mot de passe admin
-    - name: Get Admin Password
-      id: argocd-password
+    # 3. Récupération du mot de passe
+    - name: Get ArgoCD Credentials
+      id: get-creds
       run: |
         echo "PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)" >> $GITHUB_OUTPUT
         echo "::add-mask::$PASSWORD"
 
-    # 4. Se connecter et déployer l'application
-    - name: Deploy App
+    # 4. Déploiement de l'application
+    - name: Deploy Application
       run: |
-        argocd login localhost:8080 \
+        argocd login localhost:8443 \
           --username admin \
-          --password ${{ steps.argocd-password.outputs.PASSWORD }} \
+          --password ${{ steps.get-creds.outputs.PASSWORD }} \
           --insecure
 
         argocd app create my-app \
-          --repo https://github.com/votre-repo/bibliotheque.git \
+          --repo https://github.com/Touati-Fadwa/Micro-Frontend.git \
           --path k8s/manifests \
           --dest-namespace default \
           --dest-server https://kubernetes.default.svc \
@@ -192,4 +193,4 @@ jobs:
           --auto-prune
 
         argocd app sync my-app
-        argocd app wait my-app --healthy
+        argocd app wait my-app --healthy --timeout 300
