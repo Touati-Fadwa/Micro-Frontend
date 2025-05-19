@@ -162,12 +162,7 @@ jobs:
         # Sécuriser les permissions
         chmod 600 ~/.kube/config
 
-    # 2. Installation du CLI ArgoCD seul
-    - name: Install ArgoCD CLI
-      run: |
-          curl -sSLO https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
-          sudo install -m 755 argocd-linux-amd64 /usr/local/bin/argocd
-          argocd version --client
+  
 
     # 3. Déploiement ArgoCD avec port-forward intégré
     - name: Deploy ArgoCD
