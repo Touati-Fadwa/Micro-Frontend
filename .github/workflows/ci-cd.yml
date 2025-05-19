@@ -38,19 +38,19 @@ jobs:
     - name: Run tests
       run: npm test -- --coverage
 
-    - name: SonarCloud Scan
-      uses: SonarSource/sonarqube-scan-action@v5.0.0
-      env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      with:
-          args: >
-            -Dsonar.projectKey=Touati-Fadwa_Micro-Frontend
-            -Dsonar.organization=touati-fadwa
-            -Dsonar.sources=src
-            -Dsonar.exclusions=**/*.test.tsx,**/*.test.ts,**/node_modules/**
-            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
-            -Dsonar.branch.name=main
+    #- name: SonarCloud Scan
+     # uses: SonarSource/sonarqube-scan-action@v5.0.0
+      #env:
+       #   SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        #  GITHUB_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      #with:
+       #   args: >
+           # -Dsonar.projectKey=Touati-Fadwa_Micro-Frontend
+            #-Dsonar.organization=touati-fadwa
+            #-Dsonar.sources=src
+            #-Dsonar.exclusions=**/*.test.tsx,**/*.test.ts,**/node_modules/**
+            #-Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+            #-Dsonar.branch.name=main
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
@@ -78,15 +78,15 @@ jobs:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
 
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v4
-      with:
-        push: true
-        tags: |
-          ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
-          ${{ env.FRONTEND_IMAGE }}:latest
-        cache-from: type=registry,ref=${{ env.FRONTEND_IMAGE }}:latest
-        cache-to: type=inline
+    #- name: Build and push Docker image
+     # uses: docker/build-push-action@v4
+      #with:
+       # push: true
+        #tags: |
+         # ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+          #${{ env.FRONTEND_IMAGE }}:latest
+        #cache-from: type=registry,ref=${{ env.FRONTEND_IMAGE }}:latest
+        #cache-to: type=inline
 
   deploy:
     needs: build-and-push
@@ -165,9 +165,9 @@ jobs:
     # 2. Installation du CLI ArgoCD seul
     - name: Install ArgoCD CLI
       run: |
-        curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
-        sudo install -m 755 argocd /usr/local/bin/
-        argocd version --client
+          curl -sSLO https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          sudo install -m 755 argocd-linux-amd64 /usr/local/bin/argocd
+          argocd version --client
 
     # 3. Déploiement ArgoCD avec port-forward intégré
     - name: Deploy ArgoCD
