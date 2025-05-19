@@ -142,7 +142,7 @@ jobs:
         NODE_PORT=$(kubectl get svc bibliotheque-frontend-service -n ${{ env.APP_NAMESPACE }} -o jsonpath='{.spec.ports[0].nodePort}')
         echo "http://$NODE_IP:$NODE_PORT"
 
-        
+
   argocd-sync:
     needs: deploy
     runs-on: self-hosted
@@ -152,9 +152,15 @@ jobs:
       # 1. Utilisation du kubectl intégré à k3s
     - name: Configure k3s Access
       run: |
-        # Configurer l'accès au cluster
-        echo "export KUBECONFIG=/etc/rancher/k3s/k3s.yaml" >> $GITHUB_ENV
-        sudo chmod 644 $KUBECONFIG
+        mkdir -p ~/.kube
+        echo "${{ secrets.K3S_CONFIG }}" | base64 -d > ~/.kube/config
+        
+        # Remplacer localhost par l'IP publique
+        SERVER_IP=$(curl -s ifconfig.me)
+        sed -i "s/127.0.0.1/${SERVER_IP}/g" ~/.kube/config
+        
+        # Sécuriser les permissions
+        chmod 600 ~/.kube/config
 
     # 2. Installation du CLI ArgoCD seul
     - name: Install ArgoCD CLI
