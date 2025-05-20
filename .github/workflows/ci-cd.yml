@@ -68,7 +68,7 @@ jobs:
    
     - name: Install Cypress
       run: |
-        cd frontend
+        cd Micro-Frontend
         npm install cypress --save-dev
     
     - name: Start frontend in background
