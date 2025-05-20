@@ -68,19 +68,19 @@ jobs:
    
     - name: Install Cypress
       run: |
-        cd Micro-Frontend
+        
         npm install cypress --save-dev
     
     - name: Start frontend in background
       run: |
-        cd frontend
+        
         npm start &
         sleep 30  # Attendre que le serveur démarre
     
     - name: Run Cypress tests
       uses: cypress-io/github-action@v5
       with:
-        working-directory: frontend
+        
         browser: chrome
         headed: false
         wait-on: 'http://localhost:3000'
