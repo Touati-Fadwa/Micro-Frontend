@@ -58,6 +58,63 @@ jobs:
         name: frontend-build
         path: build/
 
+
+
+  e2e-tests:
+    runs-on: self-hosted
+    needs: build-and-test
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+    
+    - name: Install dependencies
+      run: |
+        cd frontend
+        npm ci
+    
+    - name: Install Cypress
+      run: |
+        cd frontend
+        npm install cypress --save-dev
+    
+    - name: Start frontend in background
+      run: |
+        cd frontend
+        npm start &
+        sleep 30  # Attendre que le serveur démarre
+    
+    - name: Run Cypress tests
+      uses: cypress-io/github-action@v5
+      with:
+        working-directory: frontend
+        browser: chrome
+        headed: false
+        wait-on: 'http://localhost:3000'
+        wait-on-timeout: 120
+    
+    - name: Upload Cypress screenshots if test fails
+      uses: actions/upload-artifact@v3
+      if: failure()
+      with:
+        name: cypress-screenshots
+        path: frontend/cypress/screenshots
+        retention-days: 5
+    
+    - name: Upload Cypress videos
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: cypress-videos
+        path: frontend/cypress/videos
+        retention-days: 5
+
   build-and-push:
     needs: build-and-test
     runs-on: self-hosted
