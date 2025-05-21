@@ -83,7 +83,7 @@ jobs:
         working-directory: ./ 
         browser: electron
         headed: false
-        wait-on: 'http://localhost:3000'
+        wait-on: 'http://localhost:3001'
         wait-on-timeout: 120
     
     - name: Upload Cypress screenshots if test fails
@@ -158,17 +158,11 @@ jobs:
 
     - name: Deploy Application
       run: |
-        # Créer le namespace s'il n'existe pas
-        kubectl create namespace ${{ env.APP_NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
         
         # Déployer l'application
         kubectl apply -f k8s/deployment.yaml -n ${{ env.APP_NAMESPACE }}
         
-        # Attendre que le déploiement soit prêt
-        kubectl wait --for=condition=available \
-          --timeout=300s \
-          deployment/bibliotheque-frontend \
-          -n ${{ env.APP_NAMESPACE }}
+        
         
     - name: Display deployment information
       run: |
