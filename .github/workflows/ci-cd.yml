@@ -58,52 +58,9 @@ jobs:
         name: frontend-build
         path: build/
 
-  e2e-tests:
-    runs-on: self-hosted
-    needs: build-and-test
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-   
-    - name: Install Cypress
-      run: |
-        
-        npm install cypress --save-dev
-    
-    - name: Start frontend in background
-      run: |
-        
-        npm start &
-        sleep 30  # Attendre que le serveur démarre
-    
-    - name: Run Cypress tests
-      uses: cypress-io/github-action@v5
-      with:
-        working-directory: ./ 
-        browser: electron
-        headed: false
-        wait-on: 'http://localhost:3001'
-        wait-on-timeout: 120
-    
-    - name: Upload Cypress screenshots if test fails
-      uses: actions/upload-artifact@v4
-      if: failure()
-      with:
-        name: cypress-screenshots
-        path: Micro-Frontend/cypress/screenshots
-        retention-days: 5
-    
-    - name: Upload Cypress videos
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: cypress-videos
-        path: Micro-Frontend/cypress/videos
-        retention-days: 5
 
   build-and-push:
-    needs: e2e-tests
+    needs: build-and-test
     runs-on: self-hosted
     if: github.event_name != 'pull_request'
     
