@@ -1,9 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import Sidebar from "../components/Sidebar"
-import Header from "../components/Header"
 import { API_URL } from "../config"
+import Header from "../components/Header"
+import Sidebar from "../components/Sidebar"
 import "../assets/student-dashboard-styles.css"
 
 const StudentDashboard = ({ user, onLogout, onNavigate }) => {
@@ -11,7 +11,6 @@ const StudentDashboard = ({ user, onLogout, onNavigate }) => {
   const [recommendations, setRecommendations] = useState([])
   const [notifications, setNotifications] = useState([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState("")
   const [activeTab, setActiveTab] = useState("overview")
 
   useEffect(() => {
@@ -110,7 +109,7 @@ const StudentDashboard = ({ user, onLogout, onNavigate }) => {
 
         setNotifications(notificationsList)
       } catch (err) {
-        setError(err.message)
+        console.error(err.message)
       } finally {
         setLoading(false)
       }
@@ -176,6 +175,13 @@ const StudentDashboard = ({ user, onLogout, onNavigate }) => {
     setNotifications(notifications.filter((n) => n.id !== id))
   }
 
+  // Fonction pour gérer la navigation vers le catalogue
+  const handleCatalogNavigation = (params = {}) => {
+    if (onNavigate) {
+      onNavigate("catalog", params)
+    }
+  }
+
   return (
     <div className="dashboard-container">
       <Sidebar role="student" />
@@ -188,7 +194,7 @@ const StudentDashboard = ({ user, onLogout, onNavigate }) => {
           <div className="welcome-content">
             <h1>Bienvenue, {user.name}!</h1>
             <p>Gérez vos emprunts et découvrez de nouvelles lectures</p>
-            <button className="catalog-button" onClick={() => onNavigate("catalog")}>
+            <button className="catalog-button" onClick={() => handleCatalogNavigation()}>
               <i className="fas fa-book"></i> Accéder au catalogue
             </button>
           </div>
@@ -297,11 +303,6 @@ const StudentDashboard = ({ user, onLogout, onNavigate }) => {
             <div className="loading-container">
               <div className="loading-spinner"></div>
               <p>Chargement des données...</p>
-            </div>
-          ) : error ? (
-            <div className="error-message">
-              <i className="fas fa-exclamation-circle"></i>
-              <p>{error}</p>
             </div>
           ) : (
             <>
@@ -412,7 +413,7 @@ const StudentDashboard = ({ user, onLogout, onNavigate }) => {
                           <i className="fas fa-book"></i>
                         </div>
                         <p>Vous n'avez pas encore emprunté de livres.</p>
-                        <button className="action-button" onClick={() => onNavigate("catalog")}>
+                        <button className="action-button" onClick={() => handleCatalogNavigation()}>
                           Parcourir le catalogue
                         </button>
                       </div>
@@ -446,7 +447,7 @@ const StudentDashboard = ({ user, onLogout, onNavigate }) => {
                             <span className="recommendation-category">{book.category}</span>
                             <button
                               className="details-button"
-                              onClick={() => onNavigate("catalog", { bookId: book.id })}
+                              onClick={() => handleCatalogNavigation({ bookId: book.id })}
                             >
                               <i className="fas fa-info-circle"></i>
                               Détails
@@ -519,7 +520,7 @@ const StudentDashboard = ({ user, onLogout, onNavigate }) => {
                         <i className="fas fa-book"></i>
                       </div>
                       <p>Vous n'avez pas d'emprunts actifs.</p>
-                      <button className="action-button" onClick={() => onNavigate("catalog")}>
+                      <button className="action-button" onClick={() => handleCatalogNavigation()}>
                         Parcourir le catalogue
                       </button>
                     </div>
@@ -630,12 +631,12 @@ const StudentDashboard = ({ user, onLogout, onNavigate }) => {
                           <div className="recommendation-actions">
                             <button
                               className="details-button"
-                              onClick={() => onNavigate("catalog", { bookId: book.id })}
+                              onClick={() => handleCatalogNavigation({ bookId: book.id })}
                             >
                               <i className="fas fa-info-circle"></i>
                               Détails
                             </button>
-                            <button className="borrow-button" onClick={() => onNavigate("catalog")}>
+                            <button className="borrow-button" onClick={() => handleCatalogNavigation()}>
                               <i className="fas fa-hand-holding"></i>
                               Emprunter
                             </button>
@@ -655,3 +656,4 @@ const StudentDashboard = ({ user, onLogout, onNavigate }) => {
 }
 
 export default StudentDashboard
+
