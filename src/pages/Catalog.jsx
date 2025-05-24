@@ -5,6 +5,7 @@ import Sidebar from "../components/Sidebar"
 import Header from "../components/Header"
 import { API_URL } from "../config"
 
+
 const Catalog = ({ user, onLogout }) => {
   // États
   const [books, setBooks] = useState([])
