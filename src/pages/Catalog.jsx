@@ -4,16 +4,16 @@ import { useState, useEffect } from "react"
 import Sidebar from "../components/Sidebar"
 import Header from "../components/Header"
 import { API_URL } from "../config"
-import "../assets/catalog-styles.css"
 
 const Catalog = ({ user, onLogout }) => {
+  // États
   const [books, setBooks] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("")
   const [categories, setCategories] = useState([])
-  const [viewMode, setViewMode] = useState("grid") // grid or list
+  const [viewMode, setViewMode] = useState("grid")
   const [sortBy, setSortBy] = useState("title")
   const [sortOrder, setSortOrder] = useState("asc")
   const [currentPage, setCurrentPage] = useState(1)
@@ -22,23 +22,26 @@ const Catalog = ({ user, onLogout }) => {
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
   const [yearFilter, setYearFilter] = useState("")
   const [availabilityFilter, setAvailabilityFilter] = useState("all")
+  const [deletingId, setDeletingId] = useState(null)
+  const [editingBook, setEditingBook] = useState(null)
+  const [showEditModal, setShowEditModal] = useState(false)
 
+  // Chargement des données
   useEffect(() => {
-    const fetchBooks = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true)
-        const response = await fetch(`${API_URL}/api/books`, {
-          headers: {
-            Authorization: `Bearer ${user.token}`,
-          },
-        })
+        const [booksRes, categoriesRes] = await Promise.all([
+          fetch(`${API_URL}/api/books`, { headers: { Authorization: `Bearer ${user.token}` } }),
+          fetch(`${API_URL}/api/books/categories`, { headers: { Authorization: `Bearer ${user.token}` } })
+        ])
 
-        if (!response.ok) {
-          throw new Error("Erreur lors du chargement des livres")
-        }
+        if (!booksRes.ok) throw new Error("Erreur lors du chargement des livres")
+        if (!categoriesRes.ok) throw new Error("Erreur lors du chargement des catégories")
 
-        const data = await response.json()
-        setBooks(data)
+        const [booksData, categoriesData] = await Promise.all([booksRes.json(), categoriesRes.json()])
+        setBooks(booksData)
+        setCategories(categoriesData)
       } catch (err) {
         setError(err.message)
       } finally {
@@ -46,64 +49,82 @@ const Catalog = ({ user, onLogout }) => {
       }
     }
 
-    const fetchCategories = async () => {
-      try {
-        const response = await fetch(`${API_URL}/api/books/categories`, {
-          headers: {
-            Authorization: `Bearer ${user.token}`,
-          },
-        })
-
-        if (!response.ok) {
-          throw new Error("Erreur lors du chargement des catégories")
-        }
-
-        const data = await response.json()
-        setCategories(data)
-      } catch (err) {
-        console.error(err)
-      }
-    }
-
-    fetchBooks()
-    fetchCategories()
+    fetchData()
   }, [user.token])
 
-  // Filtrer les livres
-  const filteredBooks = books.filter((book) => {
-    // Filtre de recherche
-    const matchesSearch =
-      book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      book.author.toLowerCase().includes(searchTerm.toLowerCase())
+  // Suppression d'un livre
+  const handleDelete = async (bookId) => {
+    if (!window.confirm("Êtes-vous sûr de vouloir supprimer ce livre ?")) return
+    
+    setDeletingId(bookId)
+    try {
+      const response = await fetch(`${API_URL}/api/books/${bookId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${user.token}` }
+      })
 
-    // Filtre de catégorie
-    const matchesCategory = selectedCategory ? book.category === selectedCategory : true
+      if (!response.ok) throw new Error("Erreur lors de la suppression")
 
-    // Filtre d'année
-    const matchesYear = yearFilter ? book.publicationYear === Number.parseInt(yearFilter) : true
+      setBooks(books.filter(book => book.id !== bookId))
+      if (selectedBook?.id === bookId) setSelectedBook(null)
+    } catch (err) {
+      alert(err.message)
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
-    // Filtre de disponibilité
-    const matchesAvailability =
-      availabilityFilter === "all" ? true : availabilityFilter === "available" ? book.available : !book.available
+  // Modification d'un livre
+  const handleEdit = (book) => {
+    setEditingBook(book)
+    setShowEditModal(true)
+  }
+
+  const handleSaveEdit = async (e) => {
+    e.preventDefault()
+    try {
+      const response = await fetch(`${API_URL}/api/books/${editingBook.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${user.token}`
+        },
+        body: JSON.stringify(editingBook)
+      })
+
+      if (!response.ok) throw new Error("Erreur lors de la mise à jour")
+
+      setBooks(books.map(book => book.id === editingBook.id ? editingBook : book))
+      setShowEditModal(false)
+      if (selectedBook?.id === editingBook.id) setSelectedBook(editingBook)
+    } catch (err) {
+      alert(err.message)
+    }
+  }
+
+  const handleEditChange = (e) => {
+    const { name, value } = e.target
+    setEditingBook(prev => ({ ...prev, [name]: value }))
+  }
+
+  // Filtrage et tri
+  const filteredBooks = books.filter(book => {
+    const matchesSearch = book.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                         book.author.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesCategory = selectedCategory ? book.categoryId === selectedCategory : true
+    const matchesYear = yearFilter ? book.publicationYear === parseInt(yearFilter) : true
+    const matchesAvailability = availabilityFilter === "all" ? true : 
+                              availabilityFilter === "available" ? book.available : !book.available
 
     return matchesSearch && matchesCategory && matchesYear && matchesAvailability
   })
 
-  // Trier les livres
   const sortedBooks = [...filteredBooks].sort((a, b) => {
-    let comparison = 0
-
-    if (sortBy === "title") {
-      comparison = a.title.localeCompare(b.title)
-    } else if (sortBy === "author") {
-      comparison = a.author.localeCompare(b.author)
-    } else if (sortBy === "year") {
-      comparison = (a.publicationYear || 0) - (b.publicationYear || 0)
-    } else if (sortBy === "popularity") {
-      comparison = (b.borrowCount || 0) - (a.borrowCount || 0)
-    }
-
-    return sortOrder === "asc" ? comparison : -comparison
+    if (sortBy === "title") return a.title.localeCompare(b.title) * (sortOrder === "asc" ? 1 : -1)
+    if (sortBy === "author") return a.author.localeCompare(b.author) * (sortOrder === "asc" ? 1 : -1)
+    if (sortBy === "year") return (a.publicationYear - b.publicationYear) * (sortOrder === "asc" ? 1 : -1)
+    if (sortBy === "popularity") return (b.borrowCount - a.borrowCount) * (sortOrder === "asc" ? 1 : -1)
+    return 0
   })
 
   // Pagination
@@ -112,13 +133,7 @@ const Catalog = ({ user, onLogout }) => {
   const currentBooks = sortedBooks.slice(indexOfFirstBook, indexOfLastBook)
   const totalPages = Math.ceil(sortedBooks.length / itemsPerPage)
 
-  // Statistiques
-  const totalBooks = books.length
-  const availableBooks = books.filter((book) => book.available).length
-  const borrowedBooks = totalBooks - availableBooks
-  const popularBooks = [...books].sort((a, b) => (b.borrowCount || 0) - (a.borrowCount || 0)).slice(0, 5)
-
-  // Gestionnaires d'événements
+  // Autres fonctions
   const handleSort = (field) => {
     if (sortBy === field) {
       setSortOrder(sortOrder === "asc" ? "desc" : "asc")
@@ -150,6 +165,11 @@ const Catalog = ({ user, onLogout }) => {
     setShowAdvancedFilters(false)
   }
 
+  // Statistiques
+  const totalBooks = books.length
+  const availableBooks = books.filter(book => book.available).length
+  const borrowedBooks = totalBooks - availableBooks
+
   return (
     <div className="dashboard-container">
       <Sidebar role={user.role} />
@@ -157,7 +177,7 @@ const Catalog = ({ user, onLogout }) => {
       <div className="main-content">
         <Header user={user} onLogout={onLogout} title="Catalogue des Livres" />
 
-        {/* En-tête du catalogue */}
+        {/* En-tête et statistiques */}
         <div className="catalog-header">
           <div className="catalog-header-content">
             <h1>Bibliothèque Numérique</h1>
@@ -165,7 +185,6 @@ const Catalog = ({ user, onLogout }) => {
           </div>
         </div>
 
-        {/* Statistiques */}
         <div className="catalog-stats">
           <div className="stat-card">
             <div className="stat-icon">
@@ -208,7 +227,7 @@ const Catalog = ({ user, onLogout }) => {
           </div>
         </div>
 
-        {/* Contrôles de recherche et filtres */}
+        {/* Contrôles de recherche */}
         <div className="catalog-controls">
           <div className="search-container">
             <i className="fas fa-search search-icon"></i>
@@ -227,18 +246,7 @@ const Catalog = ({ user, onLogout }) => {
           </div>
 
           <div className="filter-container">
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="category-filter"
-            >
-              <option value="">Toutes les catégories</option>
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
+           
 
             <button
               className={`advanced-filter-toggle ${showAdvancedFilters ? "active" : ""}`}
@@ -394,13 +402,32 @@ const Catalog = ({ user, onLogout }) => {
                     <div className="book-actions">
                       {user.role === "admin" && (
                         <>
-                          <button className="edit-button">
+                          <button 
+                            className="edit-button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleEdit(book)
+                            }}
+                          >
                             <i className="fas fa-edit"></i>
                             {viewMode === "list" && <span>Modifier</span>}
                           </button>
-                          <button className="delete-button">
-                            <i className="fas fa-trash-alt"></i>
-                            {viewMode === "list" && <span>Supprimer</span>}
+                          <button 
+                            className="delete-button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDelete(book.id)
+                            }}
+                            disabled={deletingId === book.id}
+                          >
+                            {deletingId === book.id ? (
+                              <i className="fas fa-spinner fa-spin"></i>
+                            ) : (
+                              <>
+                                <i className="fas fa-trash-alt"></i>
+                                {viewMode === "list" && <span>Supprimer</span>}
+                              </>
+                            )}
                           </button>
                         </>
                       )}
@@ -487,7 +514,7 @@ const Catalog = ({ user, onLogout }) => {
           </div>
         )}
 
-        {/* Modal de détails du livre */}
+        {/* Modal de détails */}
         {selectedBook && (
           <div className="book-modal-overlay" onClick={closeBookDetails}>
             <div className="book-modal-content" onClick={(e) => e.stopPropagation()}>
@@ -559,13 +586,26 @@ const Catalog = ({ user, onLogout }) => {
               <div className="book-modal-actions">
                 {user.role === "admin" ? (
                   <>
-                    <button className="edit-button">
+                    <button 
+                      className="edit-button"
+                      onClick={() => handleEdit(selectedBook)}
+                    >
                       <i className="fas fa-edit"></i>
                       Modifier
                     </button>
-                    <button className="delete-button">
-                      <i className="fas fa-trash-alt"></i>
-                      Supprimer
+                    <button 
+                      className="delete-button"
+                      onClick={() => handleDelete(selectedBook.id)}
+                      disabled={deletingId === selectedBook.id}
+                    >
+                      {deletingId === selectedBook.id ? (
+                        <i className="fas fa-spinner fa-spin"></i>
+                      ) : (
+                        <>
+                          <i className="fas fa-trash-alt"></i>
+                          Supprimer
+                        </>
+                      )}
                     </button>
                   </>
                 ) : (
@@ -580,7 +620,913 @@ const Catalog = ({ user, onLogout }) => {
             </div>
           </div>
         )}
+
+        {/* Modal d'édition */}
+        {showEditModal && editingBook && (
+          <div className="edit-modal-overlay" onClick={() => setShowEditModal(false)}>
+            <div className="edit-modal-content" onClick={(e) => e.stopPropagation()}>
+              <button className="close-edit-modal" onClick={() => setShowEditModal(false)}>
+                <i className="fas fa-times"></i>
+              </button>
+
+              <h2>Modifier le livre</h2>
+              
+              <form onSubmit={handleSaveEdit}>
+                <div className="form-group">
+                  <label>Titre:</label>
+                  <input
+                    type="text"
+                    name="title"
+                    value={editingBook.title}
+                    onChange={handleEditChange}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Auteur:</label>
+                  <input
+                    type="text"
+                    name="author"
+                    value={editingBook.author}
+                    onChange={handleEditChange}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Catégorie:</label>
+                  <select
+                    name="categoryId"
+                    value={editingBook.categoryId}
+                    onChange={handleEditChange}
+                    required
+                  >
+                    <option value="">Sélectionnez une catégorie</option>
+                    {categories.map(category => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Année de publication:</label>
+                  <input
+                    type="number"
+                    name="publicationYear"
+                    value={editingBook.publicationYear || ""}
+                    onChange={handleEditChange}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Éditeur:</label>
+                  <input
+                    type="text"
+                    name="publisher"
+                    value={editingBook.publisher || ""}
+                    onChange={handleEditChange}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Description:</label>
+                  <textarea
+                    name="description"
+                    value={editingBook.description || ""}
+                    onChange={handleEditChange}
+                    rows="5"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Disponibilité:</label>
+                  <select
+                    name="available"
+                    value={editingBook.available}
+                    onChange={handleEditChange}
+                  >
+                    <option value={true}>Disponible</option>
+                    <option value={false}>Emprunté</option>
+                  </select>
+                </div>
+
+                <div className="edit-modal-buttons">
+                  <button type="button" className="cancel-button" onClick={() => setShowEditModal(false)}>
+                    Annuler
+                  </button>
+                  <button type="submit" className="save-button">
+                    Enregistrer les modifications
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Styles */}
+      <style jsx>{`
+        .dashboard-container {
+          display: flex;
+          min-height: 100vh;
+          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .main-content {
+          flex: 1;
+          padding: 20px;
+          background-color: #f5f5f5;
+        }
+        
+        .catalog-header {
+          background-color: #2c3e50;
+          color: white;
+          padding: 2rem;
+          margin-bottom: 1.5rem;
+          border-radius: 8px;
+        }
+        
+        .catalog-header-content h1 {
+          margin: 0;
+          font-size: 2rem;
+        }
+        
+        .catalog-stats {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: 1rem;
+          margin-bottom: 1.5rem;
+        }
+        
+        .stat-card {
+          background: white;
+          border-radius: 8px;
+          padding: 1rem;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          display: flex;
+          align-items: center;
+        }
+        
+        .stat-icon {
+          margin-right: 1rem;
+          font-size: 1.5rem;
+          color: #3498db;
+        }
+        
+        .stat-icon.available {
+          color: #2ecc71;
+        }
+        
+        .stat-icon.borrowed {
+          color: #e74c3c;
+        }
+        
+        .stat-icon.categories {
+          color: #9b59b6;
+        }
+        
+        .stat-info h3 {
+          margin: 0;
+          font-size: 1rem;
+          color: #7f8c8d;
+        }
+        
+        .stat-value {
+          font-size: 1.5rem;
+          font-weight: bold;
+          color: #2c3e50;
+        }
+        
+        .catalog-controls {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 1rem;
+          margin-bottom: 1.5rem;
+        }
+        
+        .search-container {
+          flex: 1;
+          min-width: 250px;
+          position: relative;
+        }
+        
+        .search-input {
+          width: 100%;
+          padding: 0.5rem 2rem 0.5rem 1rem;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          font-size: 1rem;
+        }
+        
+        .search-icon {
+          position: absolute;
+          left: 0.5rem;
+          top: 50%;
+          transform: translateY(-50%);
+          color: #7f8c8d;
+        }
+        
+        .clear-search {
+          position: absolute;
+          right: 0.5rem;
+          top: 50%;
+          transform: translateY(-50%);
+          background: none;
+          border: none;
+          color: #7f8c8d;
+          cursor: pointer;
+        }
+        
+        .filter-container {
+          display: flex;
+          gap: 1rem;
+          align-items: center;
+        }
+        
+        .category-filter {
+          padding: 0.5rem;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          font-size: 1rem;
+        }
+        
+        .advanced-filter-toggle {
+          background: none;
+          border: 1px solid #3498db;
+          color: #3498db;
+          padding: 0.5rem 1rem;
+          border-radius: 4px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+        
+        .advanced-filter-toggle.active {
+          background-color: #3498db;
+          color: white;
+        }
+        
+        .view-options {
+          display: flex;
+          gap: 0.5rem;
+        }
+        
+        .view-option {
+          background: none;
+          border: 1px solid #ddd;
+          padding: 0.5rem;
+          border-radius: 4px;
+          cursor: pointer;
+        }
+        
+        .view-option.active {
+          background-color: #3498db;
+          color: white;
+          border-color: #3498db;
+        }
+        
+        .advanced-filters {
+          background: white;
+          padding: 1.5rem;
+          border-radius: 8px;
+          margin-bottom: 1.5rem;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .filter-group {
+          margin-bottom: 1rem;
+        }
+        
+        .filter-group label {
+          display: block;
+          margin-bottom: 0.5rem;
+          font-weight: 500;
+        }
+        
+        .year-filter {
+          padding: 0.5rem;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          width: 100%;
+        }
+        
+        .availability-options {
+          display: flex;
+          gap: 1rem;
+        }
+        
+        .availability-option {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.5rem;
+          border-radius: 4px;
+          cursor: pointer;
+        }
+        
+        .availability-option.active {
+          background-color: #f0f0f0;
+        }
+        
+        .sort-options {
+          display: flex;
+          gap: 0.5rem;
+        }
+        
+        .sort-select {
+          padding: 0.5rem;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+        }
+        
+        .sort-direction {
+          background: none;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          padding: 0 0.5rem;
+          cursor: pointer;
+        }
+        
+        .reset-filters {
+          background: none;
+          border: none;
+          color: #e74c3c;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+        
+        .catalog-results {
+          background: white;
+          padding: 1.5rem;
+          border-radius: 8px;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .results-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 1rem;
+        }
+        
+        .results-count {
+          color: #7f8c8d;
+        }
+        
+        .loading-container {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 2rem;
+        }
+        
+        .loading-spinner {
+          border: 4px solid rgba(0, 0, 0, 0.1);
+          border-radius: 50%;
+          border-top: 4px solid #3498db;
+          width: 40px;
+          height: 40px;
+          animation: spin 1s linear infinite;
+          margin-bottom: 1rem;
+        }
+        
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        
+        .error-message {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          color: #e74c3c;
+          padding: 1rem;
+          background-color: #fdecea;
+          border-radius: 4px;
+        }
+        
+        .books-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+          gap: 1.5rem;
+        }
+        
+        .books-list {
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+        }
+        
+        .book-card {
+          background: white;
+          border-radius: 8px;
+          overflow: hidden;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          transition: transform 0.2s;
+        }
+        
+        .book-card:hover {
+          transform: translateY(-5px);
+        }
+        
+        .book-card.grid {
+          display: flex;
+          flex-direction: column;
+          height: 100%;
+        }
+        
+        .book-card.list {
+          display: flex;
+          gap: 1.5rem;
+        }
+        
+        .book-cover {
+          position: relative;
+        }
+        
+        .book-card.grid .book-cover {
+          height: 200px;
+        }
+        
+        .book-card.list .book-cover {
+          width: 150px;
+          flex-shrink: 0;
+        }
+        
+        .book-cover img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+        
+        .book-status-badge {
+          position: absolute;
+          top: 0.5rem;
+          right: 0.5rem;
+          padding: 0.25rem 0.5rem;
+          border-radius: 4px;
+          font-size: 0.8rem;
+          font-weight: bold;
+        }
+        
+        .book-status-badge.available {
+          background-color: #2ecc71;
+          color: white;
+        }
+        
+        .book-status-badge.borrowed {
+          background-color: #e74c3c;
+          color: white;
+        }
+        
+        .book-details {
+          padding: 1rem;
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+        }
+        
+        .book-card.list .book-details {
+          padding-right: 1.5rem;
+        }
+        
+        .book-title {
+          margin: 0 0 0.5rem 0;
+          font-size: 1.1rem;
+          color: #2c3e50;
+        }
+        
+        .book-author {
+          margin: 0 0 0.5rem 0;
+          color: #7f8c8d;
+          font-size: 0.9rem;
+        }
+        
+        .book-category {
+          margin: 0 0 0.5rem 0;
+        }
+        
+        .category-badge {
+          display: inline-block;
+          background-color:rgb(135, 35, 35);
+          padding: 0.25rem 0.5rem;
+          border-radius: 4px;
+          font-size: 0.8rem;
+          color: #7f8c8d;
+        }
+        
+        .book-description {
+          margin: 0.5rem 0;
+          color: #555;
+          font-size: 0.9rem;
+        }
+        
+        .book-meta {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 1rem;
+          margin-top: 0.5rem;
+          font-size: 0.8rem;
+          color: #7f8c8d;
+        }
+        
+        .book-meta span {
+          display: flex;
+          align-items: center;
+          gap: 0.25rem;
+        }
+        
+        .book-actions {
+          display: flex;
+          gap: 0.5rem;
+          margin-top: 1rem;
+        }
+        
+        .edit-button, .delete-button, .borrow-button, .details-button {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.25rem;
+          padding: 0.5rem;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 0.9rem;
+        }
+        
+        .edit-button {
+          background-color: #3498db;
+          color: white;
+        }
+        
+        .delete-button {
+          background-color: #e74c3c;
+          color: white;
+        }
+        
+        .delete-button:disabled {
+          background-color: #95a5a6;
+          cursor: not-allowed;
+        }
+        
+        .borrow-button {
+          background-color: #2ecc71;
+          color: white;
+        }
+        
+        .details-button {
+          background-color: #f0f0f0;
+          color: #2c3e50;
+        }
+        
+        .no-results {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 3rem;
+          text-align: center;
+        }
+        
+        .no-results-icon {
+          font-size: 3rem;
+          color: #bdc3c7;
+          margin-bottom: 1rem;
+        }
+        
+        .no-results h3 {
+          margin: 0 0 0.5rem 0;
+          color: #2c3e50;
+        }
+        
+        .no-results p {
+          margin: 0 0 1.5rem 0;
+          color: #7f8c8d;
+        }
+        
+        .reset-search-button {
+          background-color: #3498db;
+          color: white;
+          border: none;
+          padding: 0.5rem 1rem;
+          border-radius: 4px;
+          cursor: pointer;
+        }
+        
+        .pagination-container {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-top: 1.5rem;
+        }
+        
+        .items-per-page {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          color: #7f8c8d;
+        }
+        
+        .items-per-page select {
+          padding: 0.25rem;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+        }
+        
+        .pagination {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+        
+        .pagination-button {
+          background: none;
+          border: 1px solid #ddd;
+          padding: 0.5rem;
+          border-radius: 4px;
+          cursor: pointer;
+        }
+        
+        .pagination-button:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+        
+        .pagination-info {
+          margin: 0 1rem;
+          color: #7f8c8d;
+        }
+        
+        .current-page {
+          font-weight: bold;
+          color: #2c3e50;
+        }
+        
+        .book-modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-color: rgba(0, 0, 0, 0.5);
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          z-index: 1000;
+        }
+        
+        .book-modal-content {
+          background-color: white;
+          width: 90%;
+          max-width: 800px;
+          max-height: 90vh;
+          border-radius: 8px;
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+        }
+        
+        .close-modal {
+          position: absolute;
+          top: 1rem;
+          right: 1rem;
+          background: none;
+          border: none;
+          font-size: 1.5rem;
+          cursor: pointer;
+          color: #7f8c8d;
+        }
+        
+        .book-modal-header {
+          display: flex;
+          padding: 1.5rem;
+          background-color: #f5f5f5;
+        }
+        
+        .book-modal-cover {
+          width: 200px;
+          height: 300px;
+          flex-shrink: 0;
+          margin-right: 1.5rem;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .book-modal-cover img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+        
+        .book-modal-info {
+          flex: 1;
+        }
+        
+        .book-modal-info h2 {
+          margin: 0 0 0.5rem 0;
+          color: #2c3e50;
+        }
+        
+        .book-modal-author {
+          margin: 0 0 1rem 0;
+          color: #7f8c8d;
+        }
+        
+        .book-modal-meta {
+          display: flex;
+          gap: 1rem;
+          margin-bottom: 1rem;
+        }
+        
+        .category-badge, .year-badge, .availability-badge {
+          padding: 0.25rem 0.5rem;
+          border-radius: 4px;
+          font-size: 0.8rem;
+        }
+        
+        .category-badge {
+          background-color:rgb(239, 218, 239);
+          color:rgb(187, 41, 150);
+        }
+        
+        .year-badge {
+          background-color: #e0f7fa;
+          color: #00838f;
+        }
+        
+        .availability-badge {
+          font-weight: bold;
+        }
+        
+        .availability-badge.available {
+          background-color: #e8f5e9;
+          color: #2e7d32;
+        }
+        
+        .availability-badge.borrowed {
+          background-color: #ffebee;
+          color: #c62828;
+        }
+        
+        .book-modal-body {
+          padding: 1.5rem;
+          overflow-y: auto;
+        }
+        
+        .book-modal-section {
+          margin-bottom: 1.5rem;
+        }
+        
+        .book-modal-section h3 {
+          margin: 0 0 1rem 0;
+          color: #2c3e50;
+          font-size: 1.2rem;
+        }
+        
+        .book-modal-section p {
+          margin: 0 0 1rem 0;
+          color: #555;
+          line-height: 1.5;
+        }
+        
+        .book-details-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+          gap: 1rem;
+        }
+        
+        .detail-item {
+          margin-bottom: 0.5rem;
+        }
+        
+        .detail-label {
+          display: block;
+          font-weight: bold;
+          color: #7f8c8d;
+          font-size: 0.8rem;
+        }
+        
+        .detail-value {
+          color: #2c3e50;
+        }
+        
+        .book-modal-actions {
+          padding: 1rem 1.5rem;
+          background-color: #f5f5f5;
+          display: flex;
+          justify-content: flex-end;
+          gap: 1rem;
+        }
+        
+        /* Modal d'édition */
+        .edit-modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-color: rgba(0, 0, 0, 0.5);
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          z-index: 2000;
+        }
+        
+        .edit-modal-content {
+          background-color: white;
+          width: 90%;
+          max-width: 600px;
+          max-height: 90vh;
+          border-radius: 8px;
+          padding: 2rem;
+          position: relative;
+          overflow-y: auto;
+        }
+        
+        .close-edit-modal {
+          position: absolute;
+          top: 1rem;
+          right: 1rem;
+          background: none;
+          border: none;
+          font-size: 1.5rem;
+          cursor: pointer;
+          color: #7f8c8d;
+        }
+        
+        .edit-modal-content h2 {
+          margin-top: 0;
+          margin-bottom: 1.5rem;
+          color: #2c3e50;
+        }
+        
+        .form-group {
+          margin-bottom: 1.2rem;
+        }
+        
+        .form-group label {
+          display: block;
+          margin-bottom: 0.5rem;
+          font-weight: 500;
+          color: #2c3e50;
+        }
+        
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+          width: 100%;
+          padding: 0.6rem;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          font-size: 1rem;
+        }
+        
+        .form-group textarea {
+          min-height: 100px;
+          resize: vertical;
+        }
+        
+        .edit-modal-buttons {
+          display: flex;
+          justify-content: flex-end;
+          gap: 1rem;
+          margin-top: 2rem;
+        }
+        
+        .cancel-button {
+          background-color: #f0f0f0;
+          color: #2c3e50;
+          border: none;
+          padding: 0.7rem 1.2rem;
+          border-radius: 4px;
+          cursor: pointer;
+          font-weight: 500;
+        }
+        
+        .save-button {
+          background-color: #3498db;
+          color: white;
+          border: none;
+          padding: 0.7rem 1.2rem;
+          border-radius: 4px;
+          cursor: pointer;
+          font-weight: 500;
+        }
+        
+        .cancel-button:hover {
+          background-color: #e0e0e0;
+        }
+        
+        .save-button:hover {
+          background-color: #2980b9;
+        }
+      `}</style>
     </div>
   )
 }
