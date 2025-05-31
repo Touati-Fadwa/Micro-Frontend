@@ -1,26 +1,19 @@
 # k8s/frontend-deployment.yaml
+
+# Définition du namespace (à conserver si non déjà créé ailleurs)
 apiVersion: v1
 kind: Namespace
 metadata:
   name: bibliotheque
-  labels:
-    app: bibliotheque
 ---
+# Déploiement de l'application frontend
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: bibliotheque-frontend
   namespace: bibliotheque
-  labels:
-    app: bibliotheque
-    tier: frontend
 spec:
   replicas: 2
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
   selector:
     matchLabels:
       app: bibliotheque-frontend
@@ -28,36 +21,14 @@ spec:
     metadata:
       labels:
         app: bibliotheque-frontend
-        tier: frontend
     spec:
       containers:
       - name: frontend
-        image: touatifadwa/bibliotheque-frontend:latest  # À remplacer par ${{ github.sha }} en CI/CD
-        imagePullPolicy: Always
+        image: touatifadwa/bibliotheque-frontend:latest
         ports:
         - containerPort: 80
-          name: http
-        resources:
-          limits:
-            cpu: "0.5"
-            memory: "512Mi"
-          requests:
-            cpu: "0.2"
-            memory: "256Mi"
-        readinessProbe:
-          httpGet:
-            path: /
-            port: 80
-          initialDelaySeconds: 10
-          periodSeconds: 5
-          timeoutSeconds: 2
-        livenessProbe:
-          httpGet:
-            path: /
-            port: 80
-          initialDelaySeconds: 30
-          periodSeconds: 10
 ---
+# Service NodePort pour exposer le frontend
 apiVersion: v1
 kind: Service
 metadata:
@@ -71,4 +42,4 @@ spec:
     - protocol: TCP
       port: 80
       targetPort: 80
-      nodePort: 30080  # Port exposé sur le nœud (30000-32767)
+      nodePort: 30080
