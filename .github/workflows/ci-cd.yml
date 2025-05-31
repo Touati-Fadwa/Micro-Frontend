@@ -43,12 +43,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.SONAR_TOKEN }}
       with:
           args: >
-              -Dsonar.projectKey=...
-              -Dsonar.organization=...
-              -Dsonar.sources=src
-              -Dsonar.exclusions=**/*.test.tsx,**/*.test.ts,**/node_modules/**
-              -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
-              -Dsonar.branch.name=main
+             -Dsonar.projectKey=Touati-Fadwa_Micro-Frontend
+             -Dsonar.organization=touati-fadwa
+             -Dsonar.sources=src
+             -Dsonar.exclusions=**/*.test.tsx,**/*.test.ts,**/node_modules/**
+             -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+             -Dsonar.branch.name=main
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
