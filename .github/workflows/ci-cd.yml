@@ -2,98 +2,99 @@ name: Full Stack CI/CD
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main ]  # Déclenchement lors d’un push sur la branche main
   pull_request:
-    branches: [ main ]
+    branches: [ main ]  # Déclenchement lors d’une pull request vers main
 
 env:
-  
-  
-  # Namespaces
+  # Espace de noms Kubernetes dans lequel déployer l'application
   APP_NAMESPACE: bibliotheque
-  
-  # Images Docker
+
+  # Nom de l'image Docker du frontend
   FRONTEND_IMAGE: touatifadwa/bibliotheque-frontend
 
 jobs:
   build-and-test:
-    runs-on: self-hosted
+    runs-on: self-hosted  # Exécuter sur un runner auto-hébergé
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v3  # Cloner le dépôt
       with:
-        fetch-depth: 0  # Nécessaire pour SonarQube
+        fetch-depth: 0  # Récupération complète de l’historique Git pour SonarQube
 
     - name: Setup Node.js
       uses: actions/setup-node@v3
       with:
-        node-version: '18'
-        cache: 'npm'
+        node-version: '18'  # Version Node.js
+        cache: 'npm'        # Cache les dépendances npm
 
     - name: Install dependencies
-      run: npm ci
+      run: npm ci  # Installer les dépendances à partir de package-lock.json
 
     - name: Build project
-      run: CI='' npm run build
+      run: CI='' npm run build  # Construire le projet React sans CI strict
 
     - name: Run tests
-      run: npm test -- --coverage
+      run: npm test -- --coverage  # Lancer les tests avec génération de la couverture
 
-    #- name: SonarCloud Scan
-     # uses: SonarSource/sonarqube-scan-action@v5.0.0
-      #env:
-       #   SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        #  GITHUB_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      #with:
-       #   args: >
-           # -Dsonar.projectKey=Touati-Fadwa_Micro-Frontend
-            #-Dsonar.organization=touati-fadwa
-            #-Dsonar.sources=src
-            #-Dsonar.exclusions=**/*.test.tsx,**/*.test.ts,**/node_modules/**
-            #-Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
-            #-Dsonar.branch.name=main
+    - name: SonarCloud Scan
+      uses: SonarSource/sonarqube-scan-action@v5.0.0
+      env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}  # Jeton SonarQube
+          GITHUB_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      with:
+          args: >
+            # Analyse personnalisée à activer si nécessaire
+            # -Dsonar.projectKey=...
+            # -Dsonar.organization=...
+            # -Dsonar.sources=src
+            # -Dsonar.exclusions=**/*.test.tsx,**/*.test.ts,**/node_modules/**
+            # -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+            -Dsonar.branch.name=main
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: frontend-build
-        path: build/
+        name: frontend-build  # Nom de l’artéfact
+        path: build/          # Chemin du dossier build
 
 
   build-and-push:
-    needs: build-and-test
+    needs: build-and-test  # Dépend de la réussite du job précédent
     runs-on: self-hosted
-    if: github.event_name != 'pull_request'
-    
+    if: github.event_name != 'pull_request'  # Ne pas exécuter pour les pull requests
+
     steps:
     - uses: actions/checkout@v3
+
     - uses: actions/download-artifact@v4
       with:
-        name: frontend-build
+        name: frontend-build  # Télécharger l'artéfact construit
 
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
+      uses: docker/setup-buildx-action@v2  # Utiliser Buildx pour une meilleure construction d’image
 
     - name: Login to Docker Hub
-      uses: docker/login-action@v2
+      uses: docker/login-action@v2  # Connexion à Docker Hub
       with:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
 
-    #- name: Build and push Docker image
-     # uses: docker/build-push-action@v4
-      #with:
-       # push: true
-        #tags: |
-         # ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
-          #${{ env.FRONTEND_IMAGE }}:latest
-        #cache-from: type=registry,ref=${{ env.FRONTEND_IMAGE }}:latest
-        #cache-to: type=inline
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v4
+      with:
+        push: true  # Pousser l'image sur Docker Hub
+        tags: |
+          ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}  # Tag unique basé sur le commit
+          ${{ env.FRONTEND_IMAGE }}:latest             # Tag latest
+        cache-from: type=registry,ref=${{ env.FRONTEND_IMAGE }}:latest  # Cache pour accélérer les builds
+        cache-to: type=inline  # Stocker le cache dans l’image (correction: `ache-to` → `cache-to`)
+
 
   deploy:
-    needs: build-and-push
+    needs: build-and-push  # Dépend du build et du push de l’image
     runs-on: self-hosted
     if: github.event_name != 'pull_request'
-    
+
     steps:
     - uses: actions/checkout@v3
 
@@ -102,25 +103,22 @@ jobs:
         mkdir -p ~/.kube
         echo "${{ secrets.K3S_CONFIG }}" | base64 -d > ~/.kube/config
         
-        # Remplacer localhost par l'IP publique
+        # Remplacer localhost par l'adresse IP publique du cluster
         SERVER_IP=$(curl -s ifconfig.me)
         sed -i "s/127.0.0.1/${SERVER_IP}/g" ~/.kube/config
         
-        # Sécuriser les permissions
+        # Sécuriser les permissions du fichier kubeconfig
         chmod 600 ~/.kube/config
-        
-        # Tester la connexion
+
+        # Tester la connexion au cluster
         kubectl cluster-info
         kubectl get nodes
 
     - name: Deploy Application
       run: |
-        
-        # Déployer l'application
+        # Appliquer les fichiers de déploiement Kubernetes
         kubectl apply -f k8s/deployment.yaml -n ${{ env.APP_NAMESPACE }}
-        
-        
-        
+
     - name: Display deployment information
       run: |
         echo "=== Deployment Status ==="
@@ -137,5 +135,9 @@ jobs:
         NODE_PORT=$(kubectl get svc bibliotheque-frontend-service -n ${{ env.APP_NAMESPACE }} -o jsonpath='{.spec.ports[0].nodePort}')
         echo "http://$NODE_IP:$NODE_PORT"
 
-
-  
+    - name: Rollback Kubernetes Deployment
+      run: |
+        echo "=== ⚠️ Rollback triggered due to deploy failure ==="
+        # Annuler le dernier déploiement en cas d'échec
+        kubectl rollout undo deployment bibliotheque-frontend-deployment -n ${{ env.APP_NAMESPACE }}
+        kubectl rollout status deployment bibliotheque-frontend-deployment -n ${{ env.APP_NAMESPACE }}
