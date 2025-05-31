@@ -25,7 +25,7 @@ jobs:
       uses: actions/setup-node@v3
       with:
         node-version: '18'  # Version Node.js
-        cache: 'npm'        # Cache les dépendances npm
+                
 
     - name: Install dependencies
       run: npm ci  # Installer les dépendances à partir de package-lock.json
@@ -83,11 +83,9 @@ jobs:
       with:
         push: true  # Pousser l'image sur Docker Hub
         tags: |
-          ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}  # Tag unique basé sur le commit
+          
           ${{ env.FRONTEND_IMAGE }}:latest             # Tag latest
-        cache-from: type=registry,ref=${{ env.FRONTEND_IMAGE }}:latest  # Cache pour accélérer les builds
-        cache-to: type=inline  # Stocker le cache dans l’image (correction: `ache-to` → `cache-to`)
-
+        
 
   deploy:
     needs: build-and-push  # Dépend du build et du push de l’image
