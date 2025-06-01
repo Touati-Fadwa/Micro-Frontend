@@ -137,5 +137,5 @@ jobs:
       run: |
         echo "=== ⚠️ Rollback triggered due to deploy failure ==="
         # Annuler le dernier déploiement en cas d'échec
-        kubectl rollout undo deployment bibliotheque-frontend-deployment -n ${{ env.APP_NAMESPACE }}
-        kubectl rollout status deployment bibliotheque-frontend-deployment -n ${{ env.APP_NAMESPACE }}
+        kubectl rollout undo deployment bibliotheque-frontend -n ${{ env.APP_NAMESPACE }}
+        kubectl rollout status deployment bibliotheque-frontend -n ${{ env.APP_NAMESPACE }}
