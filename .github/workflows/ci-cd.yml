@@ -42,7 +42,7 @@ jobs:
       uses: SonarSource/sonarqube-scan-action@v5.0.0
       env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}  # Jeton SonarQube
-          GITHUB_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          
       with:
           args: >
              -Dsonar.projectKey=Touati-Fadwa_Micro-Frontend
@@ -83,10 +83,9 @@ jobs:
     - name: Build and push Docker image
       uses: docker/build-push-action@v4
       with:
-        push: true  # Pousser l'image sur Docker Hub
-        tags: |
-          
-          ${{ env.FRONTEND_IMAGE }}:latest             # Tag latest
+       push: true  # Pousser l'image sur Docker Hub
+       tags: ${{ env.FRONTEND_IMAGE }}:latest
+
         
 
   deploy:
