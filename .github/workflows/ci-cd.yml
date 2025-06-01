@@ -26,7 +26,7 @@ jobs:
       with:
         node-version: '18'  # Version Node.js
 
-        
+
                 
 
     - name: Install dependencies
@@ -45,7 +45,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.SONAR_TOKEN }}
       with:
           args: >
-             -Dsonar.projectKey=Touati-Fadwa_Micro-Frontend
+             -Dsonar.projectKey=Touati-Fadwa_Micro-frontend
              -Dsonar.organization=touati-fadwa
              -Dsonar.sources=src
              -Dsonar.exclusions=**/*.test.tsx,**/*.test.ts,**/node_modules/**
