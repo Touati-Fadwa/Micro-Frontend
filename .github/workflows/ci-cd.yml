@@ -68,7 +68,7 @@ jobs:
     
     - name: Run simple E2E test
       run: |
-        cd Micro-Frontend
+        
         npx cypress run --spec "cypress/e2e/simple-flow.cy.js" --browser chrome --headless
     
     - name: Upload test results
