@@ -62,7 +62,7 @@ jobs:
     
     - name: Start frontend
       run: |
-        cd Micro-Frontend
+        
         npm start &
         sleep 30
     
