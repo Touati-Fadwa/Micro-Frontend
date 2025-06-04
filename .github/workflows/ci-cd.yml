@@ -2,63 +2,54 @@ name: Full Stack CI/CD
 
 on:
   push:
-    branches: [ main ]  # Déclenchement lors d’un push sur la branche main
+    branches: [ main ]
   pull_request:
-    branches: [ main ]  # Déclenchement lors d’une pull request vers main
+    branches: [ main ]
 
 env:
-  # Espace de noms Kubernetes dans lequel déployer l'application
   APP_NAMESPACE: bibliotheque
-
-  # Nom de l'image Docker du frontend
   FRONTEND_IMAGE: touatifadwa/bibliotheque-frontend
 
 jobs:
   build-and-test:
-    runs-on: self-hosted  # Exécuter sur un runner auto-hébergé
+    runs-on: self-hosted
     steps:
-    - uses: actions/checkout@v3  # Cloner le dépôt
+    - uses: actions/checkout@v3
       with:
-        fetch-depth: 0  # Récupération complète de l’historique Git pour SonarQube
-
+        fetch-depth: 0
 
     - name: Setup Node.js
       uses: actions/setup-node@v3
       with:
-        node-version: '18'  # Version Node.js
-
-
-                
+        node-version: '18'
 
     - name: Install dependencies
-      run: npm ci  # Installer les dépendances à partir de package-lock.json
+      run: npm ci
 
     - name: Build project
-      run: CI='' npm run build  # Construire le projet React sans CI strict
+      run: CI='' npm run build
 
     - name: Run tests
-      run: npm test -- --coverage  # Lancer les tests avec génération de la couverture
+      run: npm test -- --coverage
 
     - name: SonarCloud Scan
       uses: SonarSource/sonarqube-scan-action@v5.0.0
       env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}  # Jeton SonarQube
-          
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       with:
-          args: >
-             -Dsonar.projectKey=Touati-Fadwa_Micro-Frontend
-             -Dsonar.organization=touati-fadwa
-             -Dsonar.sources=src
-             -Dsonar.exclusions=**/*.test.tsx,**/*.test.ts,**/node_modules/**
-             -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
-             -Dsonar.branch.name=main
+        args: >
+          -Dsonar.projectKey=Touati-Fadwa_Micro-Frontend
+          -Dsonar.organization=touati-fadwa
+          -Dsonar.sources=src
+          -Dsonar.exclusions=**/*.test.tsx,**/*.test.ts,**/node_modules/**
+          -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+          -Dsonar.branch.name=main
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: frontend-build  # Nom de l’artéfact
-        path: build/          # Chemin du dossier build
-
+        name: frontend-build
+        path: build/
 
   e2e-tests:
     runs-on: self-hosted
@@ -98,26 +89,24 @@ jobs:
         name: cypress-screenshots
         path: frontend/cypress/screenshots
         retention-days: 3
-	
-
 
   build-and-push:
-    needs: e2e-tests  # Dépend de la réussite du job précédent
+    needs: e2e-tests
     runs-on: self-hosted
-    if: github.event_name != 'pull_request'  # Ne pas exécuter pour les pull requests
+    if: github.event_name != 'pull_request'
 
     steps:
     - uses: actions/checkout@v3
 
     - uses: actions/download-artifact@v4
       with:
-        name: frontend-build  # Télécharger l'artéfact construit
+        name: frontend-build
 
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2  # Utiliser Buildx pour une meilleure construction d’image
+      uses: docker/setup-buildx-action@v2
 
     - name: Login to Docker Hub
-      uses: docker/login-action@v2  # Connexion à Docker Hub
+      uses: docker/login-action@v2
       with:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
@@ -125,16 +114,11 @@ jobs:
     - name: Build and push Docker image
       uses: docker/build-push-action@v4
       with:
-       push: true  # Pousser l'image sur Docker Hub
-       tags: ${{ env.FRONTEND_IMAGE }}:latest
-
- 
-
-
-        
+        push: true
+        tags: ${{ env.FRONTEND_IMAGE }}:latest
 
   deploy:
-    needs: build-and-push  # Dépend du build et du push de l’image
+    needs: build-and-push
     runs-on: self-hosted
     if: github.event_name != 'pull_request'
 
@@ -146,20 +130,16 @@ jobs:
         mkdir -p ~/.kube
         echo "${{ secrets.K3S_CONFIG }}" | base64 -d > ~/.kube/config
         
-        # Remplacer localhost par l'adresse IP publique du cluster
         SERVER_IP=$(curl -s ifconfig.me)
         sed -i "s/127.0.0.1/${SERVER_IP}/g" ~/.kube/config
         
-        # Sécuriser les permissions du fichier kubeconfig
         chmod 600 ~/.kube/config
 
-        # Tester la connexion au cluster
         kubectl cluster-info
         kubectl get nodes
 
     - name: Deploy Application
       run: |
-        # Appliquer les fichiers de déploiement Kubernetes
         kubectl apply -f k8s/deployment.yaml -n ${{ env.APP_NAMESPACE }}
 
     - name: Display deployment information
@@ -178,11 +158,8 @@ jobs:
         NODE_PORT=$(kubectl get svc bibliotheque-frontend-service -n ${{ env.APP_NAMESPACE }} -o jsonpath='{.spec.ports[0].nodePort}')
         echo "http://$NODE_IP:$NODE_PORT"
 
-
     - name: Rollback on failure
       if: failure()
       run: |
         echo "❌ Échec du déploiement détecté. Lancement du rollback..."
         kubectl rollout undo deployment/bibliotheque-frontend -n ${{ env.APP_NAMESPACE }} || true
-
-    
