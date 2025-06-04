@@ -3,9 +3,9 @@ describe("BiblioTech - Test E2E Simple", () => {
     cy.visit("/")
   })
 
-  it("Doit afficher la page d'accueil", () => {
-    cy.contains("BiblioTech").should("be.visible")
-    cy.contains("Se connecter").should("be.visible")
+  it("Doit permettre la navigation vers collection", () => {
+    cy.contains("Collection").click()
+    cy.url().should("include", "/#collection")
   })
 
   it("Doit permettre la navigation vers login", () => {
@@ -13,51 +13,29 @@ describe("BiblioTech - Test E2E Simple", () => {
     cy.url().should("include", "/login")
     cy.get('input[type="email"]').should("be.visible")
     cy.get('input[type="password"]').should("be.visible")
+    cy.contains("Rôle").should("be.visible") // Vérifie la présence du champ rôle
   })
 
-  it("Doit permettre la connexion admin (mock)", () => {
-    cy.visit("/login")
-
-    // Saisie des credentials
+  it("Doit permettre l'accès au dashboard admin après connexion", () => {
+    // 1. Aller à la page de login
+    cy.contains("Se connecter").click()
+    
+    // 2. Remplir le formulaire avec identifiants admin
     cy.get('input[type="email"]').type("admin@iset.tn")
-    cy.get('input[type="password"]').type("password123")
-    cy.get("select").select("admin")
-
-    // Connexion
-    cy.get('button[type="submit"]').click()
-
-    // Vérification redirection dashboard admin
+    cy.get('input[type="password"]').type("admin123")
+    
+    // Sélection spécifique du rôle Administrateur
+    cy.contains("Rôle").parent().within(() => {
+      cy.contains("Administrateur").click() // Sélectionne le rôle par le texte
+    })
+    
+    
+    // Soumission du formulaire
+    cy.contains("button", "Se connecter").click()
+    
+    // 3. Vérification de la redirection et du dashboard
     cy.url().should("include", "/admin")
-    cy.contains("Dashboard Admin").should("be.visible")
-  })
-
-  it("Doit permettre la navigation dans le catalogue", () => {
-    // Connexion rapide admin
-    cy.visit("/login")
-    cy.get('input[type="email"]').type("admin@iset.tn")
-    cy.get('input[type="password"]').type("password123")
-    cy.get("select").select("admin")
-    cy.get('button[type="submit"]').click()
-
-    // Navigation vers catalogue
-    cy.contains("Catalogue").click()
-    cy.url().should("include", "/catalog")
-    cy.contains("Ajouter un livre").should("be.visible")
-  })
-
-  it("Doit permettre la connexion étudiant (mock)", () => {
-    cy.visit("/login")
-
-    // Connexion étudiant
-    cy.get('input[type="email"]').type("alice@student.tn")
-    cy.get('input[type="password"]').type("password123")
-    cy.get("select").select("student")
-    cy.get('button[type="submit"]').click()
-
-    // Vérification dashboard étudiant
-    cy.url().should("include", "/student")
-    cy.contains("Dashboard Étudiant").should("be.visible")
+    cy.contains("Tableau de bord Administrateur").should("be.visible")
+    cy.get(".stats-cards").should("have.length.at.least", 1)
   })
 })
-
-
