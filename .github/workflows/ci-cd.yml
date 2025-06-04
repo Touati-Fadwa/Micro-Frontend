@@ -102,7 +102,7 @@ jobs:
 
 
   build-and-push:
-    needs: build-and-test  # Dépend de la réussite du job précédent
+    needs: e2e-tests  # Dépend de la réussite du job précédent
     runs-on: self-hosted
     if: github.event_name != 'pull_request'  # Ne pas exécuter pour les pull requests
 
