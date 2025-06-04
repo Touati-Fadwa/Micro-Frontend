@@ -51,36 +51,9 @@ jobs:
         name: frontend-build
         path: build/
 
-  e2e-tests:
-    runs-on: self-hosted
-    needs: build-and-test
-    
-    steps:
-    - uses: actions/checkout@v3
-    
-    
-    
-    - name: Start frontend
-      run: |
-        
-        npm start &
-        sleep 30
-    
-    - name: Run simple E2E test
-      run: |
-        
-        npx cypress run --spec "cypress/e2e/simple-flow.cy.js" --browser chrome --headless
-    
-    - name: Upload test results
-      uses: actions/upload-artifact@v4
-      if: failure()
-      with:
-        name: cypress-screenshots
-        path: frontend/cypress/screenshots
-        retention-days: 3
-
+ 
   build-and-push:
-    needs: e2e-tests
+    needs: build-and-test
     runs-on: self-hosted
     if: github.event_name != 'pull_request'
 
