@@ -32,6 +32,7 @@ describe("BiblioTech - Test E2E Simple", () => {
     
     // Soumission du formulaire
     cy.contains("button", "Se connecter").click()
+    
 
     
     // 3. Vérification de la redirection et du dashboard
