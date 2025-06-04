@@ -83,7 +83,7 @@ jobs:
         npx cypress run --spec "cypress/e2e/simple-flow.cy.js" --browser chrome --headless
     
     - name: Upload test results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: failure()
       with:
         name: cypress-screenshots
