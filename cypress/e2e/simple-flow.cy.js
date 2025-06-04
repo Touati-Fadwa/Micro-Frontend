@@ -37,5 +37,6 @@ describe("BiblioTech - Test E2E Simple", () => {
     // 3. Vérification de la redirection et du dashboard
     cy.url().should("include", "/admin")
     
+    
   })
 })
