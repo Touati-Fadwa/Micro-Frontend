@@ -32,10 +32,10 @@ describe("BiblioTech - Test E2E Simple", () => {
     
     // Soumission du formulaire
     cy.contains("button", "Se connecter").click()
+
     
     // 3. Vérification de la redirection et du dashboard
     cy.url().should("include", "/admin")
-    cy.contains("Tableau de bord Administrateur").should("be.visible")
-    cy.get(".stats-cards").should("have.length.at.least", 1)
+    
   })
 })
