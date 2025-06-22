@@ -99,6 +99,7 @@ jobs:
 
         kubectl cluster-info
         kubectl get nodes
+        
 
     - name: Deploy Application
       run: |
